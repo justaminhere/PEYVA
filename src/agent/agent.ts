@@ -3,7 +3,7 @@
  * ToolRunner. Final text passes deterministic guards. Nothing here fabricates a reply when the LLM fails.
  */
 import type { ChatMessage, LlmClient } from "../llm/types.ts";
-import { CHAT_TOOL_SPECS, ToolRunner, type ToolEvent } from "./tools.ts";
+import { CHAT_TOOL_SPECS, ToolRunner, chatToolSpecs, type ToolEvent } from "./tools.ts";
 import { systemPrompt } from "./prompt.ts";
 import type { Session } from "./session.ts";
 import { allowedPrices } from "../compare/engine.ts";
@@ -100,7 +100,7 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
 
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
     const c0 = performance.now();
-    const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...compactHistory(s.messages), ...(correction ? [{ role: "system" as const, content: correction }] : [])], CHAT_TOOL_SPECS);
+    const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...compactHistory(s.messages), ...(correction ? [{ role: "system" as const, content: correction }] : [])], chatToolSpecs(s));
     correction = null;
     llmCalls.push({ ms: Math.round(performance.now() - c0), ok: res.ok, ...(res.ok ? { usage: res.usage } : { cause: res.cause }) });
     // Some providers (e.g. Groq) reject a malformed tool call server-side with HTTP 400. Retry once with a correction.
@@ -165,5 +165,5 @@ function afterTurnChecks(s: Session, userText: string, warnings: string[], appAc
     const missed = crossCheckPatch({}, userText, s.goal).unrecorded.filter((u) => !u.startsWith("monitoringRequested"));
     if (missed.length) warnings.push(`⚠ این جزئیات از پیامت در هدف ثبت نشد: ${missed.map((m) => m.split(":")[0]).map((k) => ({ travellers: "تعداد مسافر", budget: "بودجه", minimumHotelStars: "ستارهٔ هتل", nights: "تعداد شب" } as Record<string, string>)[k!] ?? k).join("، ")}. دوباره بگو یا با /goal بررسی کن.`);
   }
-  if (s.goal.monitoringRequested && !s.monitoringNoticeShown) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
+  if (s.goal.monitoringRequested && !s.monitoringNoticeShown && !s.persistence) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
 }

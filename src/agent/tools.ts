@@ -81,7 +81,18 @@ export const SEARCH_TOOL_SPECS: ToolSpec[] = [
   { name: "search_flights", description: "Ad-hoc one-way flight search with the real provider.", parameters: jsonSchema(SearchFlightsArgs) },
   { name: "search_hotels", description: "Ad-hoc hotel search for a stay (single room) with the real provider.", parameters: jsonSchema(SearchHotelsArgs) },
 ];
-export const ALL_TOOL_SPECS: ToolSpec[] = [...CHAT_TOOL_SPECS, ...SEARCH_TOOL_SPECS];
+/** Phase 3 tools, offered only when the session has a database. Both only PROPOSE; the user approves in the app. */
+const StartMonitoringArgs = z.object({}).strict();
+const ProposePreferenceArgs = z.object({
+  key: z.enum(["home_city", "preferred_airlines", "min_hotel_stars", "travel_style", "budget_preference"]),
+  value: z.union([z.string().min(1).max(80), z.number().int(), z.array(z.string().min(1).max(40)).max(5)]),
+}).strict();
+export const MEMORY_TOOL_SPECS: ToolSpec[] = [
+  { name: "start_monitoring", description: "When the user wants to be told later and the goal is complete (incl. a budget): saves a DRAFT monitoring goal. The app then shows the conditions and asks the user to approve. Never say monitoring is active.", parameters: jsonSchema(StartMonitoringArgs) },
+  { name: "propose_preference", description: "When the user states a lasting preference (e.g. 'usually 4-star hotels'): proposes saving it. The app asks the user; nothing is saved without their yes.", parameters: jsonSchema(ProposePreferenceArgs) },
+];
+export const ALL_TOOL_SPECS: ToolSpec[] = [...CHAT_TOOL_SPECS, ...SEARCH_TOOL_SPECS, ...MEMORY_TOOL_SPECS];
+export const chatToolSpecs = (s: Session): ToolSpec[] => (s.persistence ? [...CHAT_TOOL_SPECS, ...MEMORY_TOOL_SPECS] : CHAT_TOOL_SPECS);
 /** Kept for callers that list every tool. */
 export const TOOL_SPECS = ALL_TOOL_SPECS;
 
@@ -142,7 +153,7 @@ export class ToolRunner {
   private readonly allowed: Set<string>;
   private readonly autoCompare: boolean;
   constructor(private s: Session, opts: { tools?: "chat" | "all"; autoCompare?: boolean } = {}) {
-    this.allowed = new Set((opts.tools === "all" ? ALL_TOOL_SPECS : CHAT_TOOL_SPECS).map((t) => t.name));
+    this.allowed = new Set((opts.tools === "all" ? ALL_TOOL_SPECS : chatToolSpecs(s)).map((t) => t.name));
     this.autoCompare = opts.autoCompare ?? false;
   }
 
@@ -242,6 +253,33 @@ export class ToolRunner {
         const a = analyze(this.s.goal, now);
         if (!a.ready) return err(name, "goal is not ready", { missing: a.missing, conflicts: a.conflicts, pendingAssumptions: a.pendingAssumptions });
         return { ok: true, events, content: JSON.stringify(await this.compareNow(a, events)) };
+      }
+      case "start_monitoring": {
+        const p = parseArgs(StartMonitoringArgs, rawArgs);
+        if (!p.ok) return err(name, p.reason);
+        const pers = this.s.persistence;
+        if (!pers) return err(name, "monitoring needs the database; it is not configured");
+        if (this.s.pending) return err(name, "another approval is already waiting for the user's answer");
+        const { constraintsFromTripGoal } = await import("../goals/travel.ts");
+        const c = constraintsFromTripGoal(this.s.goal);
+        if (!c.ok) return err(name, "goal is not complete for monitoring", { missing: c.missing });
+        const d = await pers.goals.createDraft(this.s.userId, "travel_price", c.constraints, now);
+        if (!d.ok) return err(name, `could not create the draft: ${d.reason}${d.detail ? " " + d.detail : ""}`);
+        this.s.pending = { kind: "goal", goalId: d.goal.id, hash: d.goal.constraintsHash, summaryFa: d.summaryFa };
+        return { ok: true, events, content: JSON.stringify({ ok: true, draftGoalId: d.goal.id, status: d.goal.status, notes: c.notes,
+          note: "Saved as a DRAFT only. The app now shows the conditions and asks the user to approve. Monitoring is NOT active; do not say it is." }) };
+      }
+      case "propose_preference": {
+        const p = parseArgs(ProposePreferenceArgs, rawArgs);
+        if (!p.ok) return err(name, p.reason);
+        if (!this.s.persistence) return err(name, "memory needs the database; it is not configured");
+        if (this.s.pending) return err(name, "another approval is already waiting for the user's answer");
+        const { validatePreference } = await import("../memory/preferences.ts");
+        const v = validatePreference(p.value.key, p.value.value);
+        if (!v.ok) return err(name, v.reason);
+        this.s.pending = { kind: "preference", key: v.key, value: v.value, sourceMessageId: this.s.lastUserMessageId };
+        return { ok: true, events, content: JSON.stringify({ ok: true, proposed: { key: v.key, value: v.value },
+          note: "NOT saved. The app asks the user whether to remember it. Do not say it was saved." }) };
       }
       default:
         return err(name, `unknown tool '${cleanText(name, 40)}'. PEYVA can only update the goal, search and compare; it cannot book, pay or set reminders.`);

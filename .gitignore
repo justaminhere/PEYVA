@@ -21,3 +21,6 @@ experiments/*/output/
 
 # PEYVA CLI session logs and run artifacts
 /output/
+
+# local embedded PostgreSQL data
+/.pgdata/

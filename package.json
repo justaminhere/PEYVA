@@ -8,10 +8,21 @@
     "test": "bun test ./test",
     "test:all": "bun test ./test && cd experiments/travel-mcp-spike && bun run test",
     "typecheck": "experiments/travel-mcp-spike/node_modules/.bin/tsc -p . && cd experiments/travel-mcp-spike && ./node_modules/.bin/tsc -p .",
-    "peyva:token-budget": "bun run src/cli/token-budget.ts"
+    "peyva:token-budget": "bun run src/cli/token-budget.ts",
+    "db:start": "bun run src/cli/db.ts start",
+    "db:migrate": "bun run src/cli/db.ts migrate",
+    "db:generate": "drizzle-kit generate",
+    "peyva:worker": "bun run src/cli/worker.ts",
+    "peyva:goals": "bun run src/cli/goals.ts"
   },
   "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "embedded-postgres": "18.7.0-beta.19",
     "openai": "7.62.0",
+    "postgres": "4.1.1",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
   }
 }
