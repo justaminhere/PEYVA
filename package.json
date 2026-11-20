@@ -7,7 +7,8 @@
     "peyva:tools-check": "bun run src/cli/tools-check.ts",
     "test": "bun test ./test",
     "test:all": "bun test ./test && cd experiments/travel-mcp-spike && bun run test",
-    "typecheck": "experiments/travel-mcp-spike/node_modules/.bin/tsc -p . && cd experiments/travel-mcp-spike && ./node_modules/.bin/tsc -p ."
+    "typecheck": "experiments/travel-mcp-spike/node_modules/.bin/tsc -p . && cd experiments/travel-mcp-spike && ./node_modules/.bin/tsc -p .",
+    "peyva:token-budget": "bun run src/cli/token-budget.ts"
   },
   "dependencies": {
     "openai": "7.62.0",

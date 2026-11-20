@@ -179,6 +179,7 @@ bun install                          # root: zod, openai (+ experiments/travel-m
 bun run typecheck                    # root + spike
 bun run test                         # agent core (no network, no LLM)
 bun run test:all                     # + spike unit/recorded tests
+bun run peyva:token-budget           # fixed tokens per LLM request (estimate, no network)
 bun run peyva:tools-check            # LIVE provider, NO LLM: Tehran->Kish 1405-09-19, 3 nights, 1 adult
 bun run peyva:tools-check --stars 4 --adults 2 --rooms 1 --budget "۴۰ میلیون"
 cp .env.example .env && $EDITOR .env # add an LLM key
@@ -212,6 +213,8 @@ Session logs (JSONL, git-ignored): `output/sessions/`.
 The two live chats show that the model, not the code, is now the weakest link: 4 of 14 extraction calls were wrong or incomplete.
 Before adding Hono, a database or a UI, measure and improve that:
 
+0. **Cut the token cost first** (`docs/LLM_TOKEN_BUDGET.md`). On the free tier, a request carries ≈ 3,567 fixed tokens (estimate)
+   against an 8,000 tokens/minute limit, so every turn waits on the rate limit and testing is capped at < 20 turns a day.
 1. **Live re-run of the post-chat-2 guards** (one chat), then a small evaluation set: 20 Persian requests with the expected `GoalPatch`, run against the configured model and scored deterministically.
 2. Hono `/chat` (SSE) over the same `runTurn`.
 3. Postgres + Drizzle for sessions and `tool_calls` audit.
