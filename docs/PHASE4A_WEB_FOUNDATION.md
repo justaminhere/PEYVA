@@ -108,12 +108,12 @@ All test runs below use a real embedded PostgreSQL 18 and recorded MrBilit data.
 
 ## 6. End-to-end on the developer machine
 
-Pending: a real conversation in the browser on Omarchy, with the real LLM, live MrBilit and real PostgreSQL.
+See `docs/PHASE4A_E2E_VERIFICATION.md`. Result: CONDITIONAL GO. The real browser, PostgreSQL, MrBilit (worker), approvals and restart/resume are verified. The full real-LLM conversation was not verified, because the Groq daily quota was exhausted.
 
 ## 7. Limitations
 
 - **Single user and single session per server process:** a second tab shares the same conversation.
-- **Process-bound state:** the transcript survives a reload (it is in PostgreSQL). The agent's working memory (current trip goal, LLM context) does not survive a server restart.
+- **Restart and resume:** after a restart, the latest conversation (saved within `PEYVA_RESUME_HOURS`, default 24) is resumed from a versioned snapshot in `conversations.state`. Search caches are not restored. See the E2E report §7.
 - **Partly Latin progress labels:** search lines come from the terminal renderer, so they still show route codes and ISO dates (`THR→KIH 2026-12-10`).
 - **One provider, one goal type:** the same as Phase 3.
 - **Interim text during tool calls:** text streamed during an iteration that ends in tool calls is discarded from the view when the tools start. Only the final answer stays.

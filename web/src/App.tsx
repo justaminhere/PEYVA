@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { Api, ChatEvent } from "./api.ts";
 import type { ComparisonCards, GoalView, PendingView, StateView } from "./types.ts";
 import { ApprovalPanel, GoalsPanel, ResultTickets, Wordmark } from "./components.tsx";
@@ -98,11 +98,11 @@ function Message({ m }: { m: Msg }) {
 export function App({ api }: { api: Api }) {
   const [s, dispatch] = useReducer(reducer, { msgs: [], pending: null, goals: [], info: null, resumed: null, busy: false, loaded: false, loadError: null });
   const [draft, setDraft] = useState("");
-  const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.state().then((st) => dispatch({ t: "loaded", s: st }), (e: Error) => dispatch({ t: "load_failed", error: e.message })); }, [api]);
   // New messages and a newly shown approval panel scroll into view, so its buttons are never left below the fold.
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [s.msgs, s.pending]);
+  // (Scrolls the document to its very end: the sticky composer would otherwise cover the last ~150 px.)
+  useEffect(() => { if (s.msgs.length || s.pending) window.scrollTo?.({ top: document.documentElement.scrollHeight }); }, [s.msgs, s.pending]);
 
   async function send(text: string) {
     const t = text.trim();
@@ -152,7 +152,6 @@ export function App({ api }: { api: Api }) {
           {s.resumed && s.msgs.length ? <p className="text-sm text-ink-soft">این گفتگو پس از راه‌اندازی دوبارهٔ سرور از پایگاه داده ادامه یافت (آخرین ذخیره: {s.resumed.savedAtFa}). برای شروع دوباره «گفتگوی تازه» را بزن.</p> : null}
           {s.msgs.map((m) => <Message key={m.id} m={m} />)}
           {s.pending ? <ApprovalPanel pending={s.pending} busy={s.busy} onDecide={decide} /> : null}
-          <div ref={end} />
         </main>
         <details className="mb-3 rounded-lg border border-line bg-paper px-4 py-2 lg:hidden">
           <summary className="cursor-pointer text-sm">هدف‌های پیگیری ({s.goals.length.toLocaleString("fa-IR")})</summary>
