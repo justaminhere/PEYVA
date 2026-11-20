@@ -7,11 +7,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadLlmConfig, describeLlm } from "../config.ts";
 import { OpenAICompatibleClient } from "../llm/openai-compatible.ts";
-import { Session } from "../agent/session.ts";
 import { ConversationStore } from "../memory/conversations.ts";
 import { openRuntime } from "../cli/runtime.ts";
 import { sessionLogger } from "../cli/log.ts";
 import { AgentHost } from "./host.ts";
+import { webSessionFactory } from "./session.ts";
 import { createApp } from "./app.ts";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -37,11 +37,12 @@ if (!rt) { console.error("PEYVA_DATABASE_URL تنظیم نشده. اول `bun ru
 
 const llm = new OpenAICompatibleClient(cfg.llm);
 const store = new ConversationStore(rt.db.db);
-const host = new AgentHost(async () => {
-  const s = new Session(rt.provider, () => new Date(), rt.userId, { db: rt.db.db, goals: rt.goals, prefs: rt.prefs, conversationId: await store.start(rt.userId) });
-  s.preferences = await rt.prefs.list(rt.userId);
-  return s;
-});
+const resumeHours = Number(process.env.PEYVA_RESUME_HOURS ?? 24);
+const host = new AgentHost(webSessionFactory({
+  provider: rt.provider, userId: rt.userId, store, persistence: { db: rt.db.db, goals: rt.goals, prefs: rt.prefs },
+  resumeMaxAgeMs: Number.isFinite(resumeHours) && resumeHours >= 0 ? resumeHours * 3_600_000 : 24 * 3_600_000,
+  onResume: (o) => { void log.write({ type: "resume", ...o }); console.log(o.resumed ? `گفتگوی #${o.conversationId} از پایگاه داده ادامه یافت (${o.messages} پیام)${o.droppedPending ? `؛ تأیید معلق کنار گذاشته شد: ${o.droppedPending}` : ""}` : `گفتگوی تازه (بازیابی نشد: ${o.reason})`); },
+}));
 const names = hostname === "::1" ? ["[::1]"] : ["127.0.0.1", "localhost"];
 const allowedHosts = [...names.map((n) => `${n}:${port}`), ...names.map((n) => `${n}:${devPort}`)];
 const app = createApp({

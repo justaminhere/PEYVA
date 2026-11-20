@@ -8,7 +8,8 @@ An AI-native Persian personal agent for Iranian online services. The first verti
 bun install
 cp .env.example .env            # LLM settings; PEYVA_DATABASE_URL for memory and monitoring
 bun run db:start                # embedded PostgreSQL (keep running); prints PEYVA_DATABASE_URL
-bun run peyva:chat              # chat (Persian)
+bun run peyva:chat              # chat (Persian, terminal)
+bun run web:build && bun run peyva:web   # chat in the browser: http://127.0.0.1:4317 (local only)
 bun run peyva:worker            # background monitoring worker (separate terminal)
 bun run peyva:goals help        # goals, notifications, preferences and Telegram without the LLM
 bun run test && bun run typecheck
@@ -19,3 +20,4 @@ bun run test && bun run typecheck
 - `docs/TRAVEL_MCP_FEASIBILITY.md`, `docs/TRAVEL_MCP_READINESS.md`: Phase 1 / 1.5 provider research
 - `docs/PHASE2A_AGENT_CORE.md`, `docs/LLM_TOKEN_BUDGET.md`: agent core and token diet
 - `docs/PHASE3_PERSISTENT_AGENT.md`: memory, goals, worker and notifications
+- `docs/PHASE4A_WEB_FOUNDATION.md`: local chat-first web app

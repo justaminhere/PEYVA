@@ -16,6 +16,9 @@ export const conversations = pgTable("conversations", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id").notNull().references(() => users.id),
   createdAt: ts("created_at").notNull().defaultNow(),
+  /** Structured working state of the agent session (versioned snapshot), so a restarted server can resume. */
+  state: jsonb("state"),
+  updatedAt: ts("updated_at"),
 }, (t) => [index("conversations_user_idx").on(t.userId)]);
 
 export const messages = pgTable("messages", {

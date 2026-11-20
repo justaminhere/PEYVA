@@ -27,10 +27,12 @@ export class Session {
   monitoringNoticeShown = false;
   pending: PendingConfirmation | null = null;
   preferences: StoredPreference[] = [];
+  /** Set when this session was rebuilt from PostgreSQL after a server restart (see memory/session-state.ts). */
+  resumedFrom: { conversationId: number; savedAt: Date } | null = null;
   /** Id of the stored user message of the current turn (for preference provenance). */
   lastUserMessageId: number | null = null;
   constructor(readonly provider: TravelSearchProvider, readonly now: () => Date = () => new Date(),
-    readonly userId = "local", readonly persistence: Persistence | null = null) {}
+    readonly userId = "local", public persistence: Persistence | null = null) {}
 
   /** The latest user message (used to cross-check what the LLM reports). */
   lastUserText(): string {

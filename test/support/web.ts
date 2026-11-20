@@ -6,10 +6,10 @@ import { makeTravelPriceExecutor } from "../../src/goals/travel.ts";
 import { PreferenceStore } from "../../src/memory/preferences.ts";
 import { ConversationStore } from "../../src/memory/conversations.ts";
 import { NotificationService } from "../../src/notify/service.ts";
-import { Session } from "../../src/agent/session.ts";
 import type { CommandContext } from "../../src/cli/commands.ts";
 import type { LlmClient } from "../../src/llm/types.ts";
 import { AgentHost } from "../../src/web/host.ts";
+import { webSessionFactory } from "../../src/web/session.ts";
 import { createApp } from "../../src/web/app.ts";
 import { readSse } from "../../web/src/sse.ts";
 import { RecordedProvider } from "./recorded-provider.ts";
@@ -17,14 +17,14 @@ import { RecordedProvider } from "./recorded-provider.ts";
 export const HOST = "127.0.0.1:4317";
 export const ORIGIN = `http://${HOST}`;
 
-export async function webApp(db: DbHandle, llm: LlmClient, now: () => Date) {
+export async function webApp(db: DbHandle, llm: LlmClient, now: () => Date, opts: { resumeMaxAgeMs?: number } = {}) {
   await ensureUser(db.db, "amin");
   const provider = new RecordedProvider(now);
   const registry = new ExecutorRegistry().register(makeTravelPriceExecutor(provider));
   const ctx: CommandContext = { userId: "amin", registry, goals: new GoalService(db.db, registry), prefs: new PreferenceStore(db.db),
     notifications: new NotificationService(db.db, null, { now }), linker: null };
   const store = new ConversationStore(db.db);
-  const host = new AgentHost(async () => new Session(provider, now, "amin", { db: db.db, goals: ctx.goals, prefs: ctx.prefs, conversationId: await store.start("amin", now()) }));
+  const host = new AgentHost(webSessionFactory({ provider, userId: "amin", store, now, persistence: { db: db.db, goals: ctx.goals, prefs: ctx.prefs }, resumeMaxAgeMs: opts.resumeMaxAgeMs ?? 0 }));
   const app = createApp({ host, llm, ctx, store, allowedHosts: [HOST], allowedOrigins: [ORIGIN], now });
   /** fetch() into the app as a same-origin browser would. */
   const call = (path: string, init: RequestInit = {}) => app.fetch(new Request(`${ORIGIN}${path}`, {

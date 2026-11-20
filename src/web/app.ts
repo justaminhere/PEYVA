@@ -15,6 +15,8 @@ import { comparisonCards } from "../render/cards.ts";
 import type { ToolEvent } from "../agent/tools.ts";
 import { AgentHost } from "./host.ts";
 import { goalView, goalViews, pendingView } from "./views.ts";
+import { saveSession } from "../memory/session-state.ts";
+import { tehranDateTime } from "../agent/confirm.ts";
 
 export interface WebDeps {
   host: AgentHost;
@@ -67,6 +69,7 @@ export function createApp(d: WebDeps) {
     const transcript = conv ? (await d.store.recent(s.userId, conv, 50)).map((m) => ({ id: m.id, role: m.role, text: m.content })) : [];
     return {
       userId: s.userId, info: d.info ?? null, goal: s.goalSummary(), pending: pendingView(s), transcript,
+      resumed: s.resumedFrom ? { savedAtFa: tehranDateTime(s.resumedFrom.savedAt) } : null,
       cards: s.lastComparison ? comparisonCards(s.lastComparison, now()) : null, goals: await goalViews(d.ctx),
     };
   })));
@@ -90,6 +93,7 @@ export function createApp(d: WebDeps) {
             onToolDone: (name, ok, events) => q(send("tool_done", { name, ok, events: events.map(eventView) })),
           } });
           await Promise.all(queue);
+          await saveSession(s, d.store); // structured working state, so a restarted server can continue this conversation
           if (h.turn?.newComparison && s.lastComparison) await send("cards", comparisonCards(s.lastComparison, now()));
           // The approval question is shown by the UI's approval card (from `state.pending`), so it is not repeated here.
           await send("reply", { text: h.text, question: h.question, source: h.source, warnings: h.turn?.warnings ?? [], llmError: h.turn?.llmError ?? null });
@@ -116,6 +120,7 @@ export function createApp(d: WebDeps) {
       if (p.kind === "goal" && body.data.goalId !== p.goalId) return c.json({ error: "this approval is no longer current" }, 409);
       if (p.kind === "preference" && body.data.key !== p.key) return c.json({ error: "this approval is no longer current" }, 409);
       const reply = await decidePending(s, body.data.decision === "approve");
+      await saveSession(s, d.store);
       const conv = s.persistence?.conversationId;
       if (conv && reply) {
         await d.store.add(s.userId, conv, "user", body.data.decision === "approve" ? "(دکمهٔ تأیید)" : "(دکمهٔ رد)", now());

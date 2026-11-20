@@ -14,5 +14,5 @@ export type PendingView = { kind: "goal"; goalId: number; goalIdFa: string; summ
 export interface ToolEventView { type: string; textFa: string }
 export interface StateView {
   userId: string; info: { llm: string; telegram: boolean; db: string } | null; pending: PendingView;
-  transcript: { id: number; role: "user" | "assistant"; text: string }[]; cards: ComparisonCards | null; goals: GoalView[];
+  transcript: { id: number; role: "user" | "assistant"; text: string }[]; resumed: { savedAtFa: string } | null; cards: ComparisonCards | null; goals: GoalView[];
 }

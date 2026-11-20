@@ -5,7 +5,7 @@ import { ApprovalPanel, GoalsPanel, ResultTickets, Wordmark } from "./components
 
 interface Step { key: string; labelFa: string; status: "running" | "ok" | "failed"; details: string[] }
 export interface Msg { id: string; role: "user" | "assistant"; text: string; live: string; streaming: boolean; steps: Step[]; cards: ComparisonCards | null; warnings: string[]; error: string | null }
-interface State { msgs: Msg[]; pending: PendingView; goals: GoalView[]; info: StateView["info"]; busy: boolean; loaded: boolean; loadError: string | null }
+interface State { msgs: Msg[]; pending: PendingView; goals: GoalView[]; info: StateView["info"]; resumed: StateView["resumed"]; busy: boolean; loaded: boolean; loadError: string | null }
 
 const TOOL_FA: Record<string, string> = {
   update_trip_goal: "ثبت جزئیات سفر", compare_trip_options: "مقایسهٔ گزینه‌ها", start_monitoring: "ساخت پیش‌نویس پیگیری",
@@ -32,7 +32,7 @@ function reducer(s: State, a: Action): State {
       const msgs = a.s.transcript.map((m) => ({ ...newMsg(m.role, m.text) }));
       const last = [...msgs].reverse().find((m) => m.role === "assistant");
       if (last && a.s.cards) last.cards = a.s.cards;
-      return { ...s, msgs, pending: a.s.pending, goals: a.s.goals, info: a.s.info, loaded: true, loadError: null };
+      return { ...s, msgs, pending: a.s.pending, goals: a.s.goals, info: a.s.info, resumed: a.s.resumed, loaded: true, loadError: null };
     }
     case "load_failed": return { ...s, loaded: true, loadError: a.error };
     case "send": return { ...s, busy: true, msgs: [...s.msgs, newMsg("user", a.text), newMsg("assistant", "", true)] };
@@ -50,7 +50,9 @@ function reducer(s: State, a: Action): State {
         return { ...m, steps };
       });
       if (event === "cards") return patchLast(s, (m) => ({ ...m, cards: data }));
-      if (event === "reply") return patchLast(s, (m) => ({ ...m, text: data.text, live: "", warnings: data.warnings ?? [] }));
+      // A failed LLM call is shown as an error (role=alert), not as an answer from the agent.
+      if (event === "reply") return patchLast(s, (m) => (data.llmError ? { ...m, text: "", live: "", error: data.text, warnings: data.warnings ?? [] }
+        : { ...m, text: data.text, live: "", warnings: data.warnings ?? [] }));
       if (event === "state") return { ...s, pending: data.pending, goals: data.goals };
       if (event === "error") return patchLast(s, (m) => ({ ...m, error: data.message }));
       return s;
@@ -60,7 +62,7 @@ function reducer(s: State, a: Action): State {
     case "approval": return { ...s, pending: a.pending, goals: a.goals, busy: false, msgs: a.reply ? [...s.msgs, newMsg("assistant", a.reply)] : s.msgs };
     case "goals": return { ...s, goals: a.goals, busy: false };
     case "busy": return { ...s, busy: a.busy };
-    case "reset": return { ...s, msgs: [], pending: null, busy: false };
+    case "reset": return { ...s, msgs: [], pending: null, resumed: null, busy: false };
   }
 }
 
@@ -94,7 +96,7 @@ function Message({ m }: { m: Msg }) {
 }
 
 export function App({ api }: { api: Api }) {
-  const [s, dispatch] = useReducer(reducer, { msgs: [], pending: null, goals: [], info: null, busy: false, loaded: false, loadError: null });
+  const [s, dispatch] = useReducer(reducer, { msgs: [], pending: null, goals: [], info: null, resumed: null, busy: false, loaded: false, loadError: null });
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
@@ -146,6 +148,7 @@ export function App({ api }: { api: Api }) {
               </div>
             </div>
           ) : null}
+          {s.resumed && s.msgs.length ? <p className="text-sm text-ink-soft">این گفتگو پس از راه‌اندازی دوبارهٔ سرور از پایگاه داده ادامه یافت (آخرین ذخیره: {s.resumed.savedAtFa}). برای شروع دوباره «گفتگوی تازه» را بزن.</p> : null}
           {s.msgs.map((m) => <Message key={m.id} m={m} />)}
           {s.pending ? <ApprovalPanel pending={s.pending} busy={s.busy} onDecide={decide} /> : null}
           <div ref={end} />
