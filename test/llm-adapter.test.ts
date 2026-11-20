@@ -2,7 +2,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { OpenAICompatibleClient } from "../src/llm/openai-compatible.ts";
 import { loadLlmConfig, describeLlm } from "../src/config.ts";
-import { TOOL_SPECS } from "../src/agent/tools.ts";
+import { CHAT_TOOL_SPECS as TOOL_SPECS } from "../src/agent/tools.ts";
 
 let mode: "tool" | "text" | "401" | "429" | "garbage" | "slow" = "tool";
 let lastBody: any = null, lastAuth: string | null = null;
@@ -30,7 +30,7 @@ test("sends model, tools and auth; parses tool calls", async () => {
   const r = await client.complete([{ role: "system", content: "s" }, { role: "user", content: "کیش" }], TOOL_SPECS);
   expect(r).toMatchObject({ ok: true, toolCalls: [{ id: "c1", name: "update_trip_goal", arguments: "{\"destination\":\"کیش\"}" }] });
   expect(lastBody.model).toBe("test-model");
-  expect(lastBody.tools.map((t: any) => t.function.name)).toEqual(["update_trip_goal", "compare_trip_options", "search_flights", "search_hotels"]);
+  expect(lastBody.tools.map((t: any) => t.function.name)).toEqual(["update_trip_goal", "compare_trip_options"]);
   expect(JSON.stringify(lastBody.tools)).not.toContain("$schema");
   expect(lastAuth).toBe("Bearer sk-test-not-real");
 });

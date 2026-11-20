@@ -28,7 +28,7 @@ Persian message
 | `src/goal/dates.ts` | Jalali↔Gregorian via ICU `persian` calendar, month windows, relative days in Asia/Tehran |
 | `src/goal/state.ts` | `applyPatch` (multi-turn merge), `analyze` (missing / conflicts / disclosures / bounded plan) |
 | `src/compare/engine.ts` | deterministic comparison: eligibility, capacity, stars, budget, freshness, truncation |
-| `src/agent/tools.ts` | the 4 tools, argument validation, search cache, budget, circuit breaker |
+| `src/agent/tools.ts` | tools (2 offered to the chat LLM since the token diet, 2 ad-hoc searches), argument validation, search cache, budget, circuit breaker |
 | `src/agent/agent.ts`, `prompt.ts`, `guards.ts`, `untrusted.ts` | bounded LLM loop, system prompt, output guards, provider-text fencing |
 | `src/llm/types.ts`, `src/llm/openai-compatible.ts` | provider-independent `LlmClient`; the one real adapter (official `openai` SDK) |
 | `src/travel/index.ts`, `src/travel/places.ts` | re-export of the Phase 1.5 boundary; city → IATA table |
@@ -50,7 +50,7 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
    conflict, because they suggest a Rial/Toman mix-up.
 4. **`compare_trip_options` runs the searches itself.** Once the goal is ready, the LLM calls one tool. Code derives the dates
    (fixed, or at most 3 candidates from a flexible range: start / middle / end), searches through the boundary, reuses fresh results,
-   re-searches results older than 15 min, and compares. Ad-hoc `search_flights` / `search_hotels` exist with the same validation.
+   re-searches results older than 15 min, and compares. Ad-hoc `search_flights` / `search_hotels` exist with the same validation, but are hidden from the chat LLM since the token diet (`docs/LLM_TOKEN_BUDGET.md`).
 5. **Prices come from code only.** The CLI prints the comparison table from the engine. The LLM is told to refer to options by
    number. A **price guard** flags any money-like figure in the LLM's text that no tool produced. An **action guard** flags claims of
    booking, payment, reminders or monitoring. There are no such tools, and unknown tool names are rejected.

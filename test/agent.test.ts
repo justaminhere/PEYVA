@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { runTurn, MAX_ITERATIONS } from "../src/agent/agent.ts";
 import { Session } from "../src/agent/session.ts";
+import { ToolRunner } from "../src/agent/tools.ts";
 import { MONITORING_NOTICE, PRICE_WARNING, ACTION_WARNING } from "../src/agent/guards.ts";
 import { renderComparison } from "../src/render/fa.ts";
 import { cleanText } from "../src/agent/untrusted.ts";
@@ -18,7 +19,7 @@ test("multi-turn: clarify, merge, validate, search (recorded real data), compare
   const llm = new ScriptedLlm([
     tools(call("update_trip_goal", { intent: "trip", destination: "کیش", nights: 3 })), say("از کدوم شهر حرکت می‌کنی؟"),
     tools(call("update_trip_goal", { origin: "تهران", adults: 1, budgetText: "۳۰ میلیون" })), say("چه تاریخی؟"),
-    tools(call("update_trip_goal", { departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
+    tools(call("update_trip_goal", { departureDate: { text: "۱۹ آذر ۱۴۰۵" } })),
     tools(call("compare_trip_options", {})), say("گزینه ۱ ارزان‌ترین است و در بودجه‌ات جا می‌شود."),
   ]);
   let t = await runTurn(s, llm, "می‌خوام یه سفر سه شبه به کیش برم");
@@ -59,22 +60,39 @@ test("invalid LLM tool calls are rejected before execution", async () => {
   const p = new RecordedProvider(now);
   const s = new Session(p, now);
   const bad = [
-    call("search_flights", "{not json"),
-    call("search_flights", { origin: "تهران", destination: "کیش", date: { calendar: "jalali", year: 1405, month: 9, day: 19 } }), // adults missing
-    call("search_flights", { origin: "تهران", destination: "کیش", date: { calendar: "gregorian", year: 2026, month: 11, day: 1 }, adults: 1 }), // past
-    call("search_flights", { origin: "تهران", destination: "کیش", date: { calendar: "jalali", month: 10, day: 10 }, adults: 1 }), // year not stated
-    call("search_hotels", { city: "پاریس", checkIn: { relative: "tomorrow" }, checkOut: { relative: "in_days", days: 3 }, adults: 1 }),
+    call("update_trip_goal", "{not json"),
     call("update_trip_goal", { destination: "کیش", hotelPrice: 1000 }), // invented field
+    call("update_trip_goal", { departureDate: { calendar: "jalali", year: 1405, month: 11, day: 19 } }), // number-based date: not allowed for the LLM
+    call("update_trip_goal", { adults: 0 }),
+    call("search_flights", { origin: "تهران", destination: "کیش", date: { text: "۱۹ آذر ۱۴۰۵" }, adults: 1 }), // hidden in chat
   ];
   await runTurn(s, new ScriptedLlm([tools(...bad), say("…")]), "x");
   const results = s.messages.filter((m) => m.role === "tool").map((m) => JSON.parse(m.content as string));
-  expect(results.map((r) => r.ok)).toEqual([false, false, false, false, false, false]);
+  expect(results.map((r) => r.ok)).toEqual([false, false, false, false, false]);
   expect(results[0].error).toContain("not valid JSON");
-  expect(results[1].error).toContain("adults");
-  expect(results[2].error).toContain("past");
-  expect(results[3].error).toContain("confirm the year");
-  expect(results[4].error).toContain("unknown city");
-  expect(results[5].error).toContain("invalid arguments");
+  expect(results[1].error).toContain("invalid arguments");
+  expect(results[2].error).toContain('{"text"');
+  expect(results[3].error).toContain("adults");
+  expect(results[4].error).toContain("unknown tool");
+  expect(p.calls).toEqual([]);
+});
+
+test("ad-hoc search tools still validate strictly when offered (tools: all)", async () => {
+  const p = new RecordedProvider(now);
+  const s = new Session(p, now);
+  const r = new ToolRunner(s, { tools: "all" });
+  const res = await Promise.all([
+    r.run("search_flights", JSON.stringify({ origin: "تهران", destination: "کیش", date: { text: "۱۹ آذر ۱۴۰۵" } })), // adults missing
+    r.run("search_flights", JSON.stringify({ origin: "تهران", destination: "کیش", date: { calendar: "gregorian", year: 2026, month: 11, day: 1 }, adults: 1 })), // past
+    r.run("search_flights", JSON.stringify({ origin: "تهران", destination: "کیش", date: { text: "۱۰ دی" }, adults: 1 })), // year not stated
+    r.run("search_hotels", JSON.stringify({ city: "پاریس", checkIn: { text: "فردا" }, checkOut: { relative: "in_days", days: 3 }, adults: 1 })),
+  ]);
+  const out = res.map((x) => JSON.parse(x.content));
+  expect(out.map((o) => o.ok)).toEqual([false, false, false, false]);
+  expect(out[0].error).toContain("adults");
+  expect(out[1].error).toContain("past");
+  expect(out[2].error).toContain("confirm the year");
+  expect(out[3].error).toContain("unknown city");
   expect(p.calls).toEqual([]);
 });
 
@@ -94,7 +112,7 @@ test("prompt injection in provider content stays fenced data and cannot trigger 
   const p = new RecordedProvider(now, { "H:کیش-2026-12-10-2026-12-13": (d: any) => { d.hotels[0].name = injected; return d; } });
   const s = new Session(p, now);
   const llm = new ScriptedLlm([
-    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
+    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { text: "۱۹ آذر ۱۴۰۵" } })),
     tools(call("compare_trip_options", {})),
     (msgs) => {
       const c = msgs.at(-1)!.content as string;
@@ -115,7 +133,7 @@ test("price guard flags numbers the tools never produced", async () => {
   clock = new Date("2026-11-20T10:00:00Z");
   const s = new Session(new RecordedProvider(now), now);
   const go = [
-    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
+    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { text: "۱۹ آذر ۱۴۰۵" } })),
     tools(call("compare_trip_options", {})),
   ];
   const ok = await runTurn(s, new ScriptedLlm([...go, say("جمع گزینه ۱: ۲۵٬۱۱۴٬۳۰۰ تومان")]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
@@ -128,7 +146,7 @@ test("stale results are re-searched; fresh ones are reused", async () => {
   clock = new Date("2026-11-20T10:00:00Z");
   const p = new RecordedProvider(now);
   const s = new Session(p, now);
-  const ready = tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } }));
+  const ready = tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { text: "۱۹ آذر ۱۴۰۵" } }));
   await runTurn(s, new ScriptedLlm([ready, tools(call("compare_trip_options", {})), say("…")]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
   expect(p.calls.length).toBe(3);
   clock = new Date("2026-11-20T10:10:00Z");
@@ -145,7 +163,7 @@ test("provider access problems stop further searches (no hammering)", async () =
   const p = new RecordedProvider(now, {}, new Set(["F:THR-KIH-2026-12-10"]));
   const s = new Session(p, now);
   await runTurn(s, new ScriptedLlm([
-    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
+    tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { text: "۱۹ آذر ۱۴۰۵" } })),
     tools(call("compare_trip_options", {})), say("…"),
   ]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
   expect(p.calls).toEqual(["F:THR-KIH-2026-12-10"]);
@@ -160,7 +178,7 @@ test("flexible range: bounded candidates, year confirmation required first", asy
   const s = new Session(p, now);
   await runTurn(s, new ScriptedLlm([
     tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, datesFlexible: true,
-      dateWindow: { from: { calendar: "jalali", month: 10, day: 10 }, to: { calendar: "jalali", month: 10, day: 20 } } })),
+      dateWindow: { from: { text: "۱۰ دی" }, to: { text: "۲۰ دی" } } })),
     tools(call("compare_trip_options", {})), say("منظورت دی ۱۴۰۵ است؟"),
   ]), "تهران به کیش، سه شب، یک نفر، بین ۱۰ تا ۲۰ دی، هر تاریخی");
   expect(lastTool(s).pendingAssumptions[0]).toContain("۱۴۰۵");

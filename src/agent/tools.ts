@@ -4,7 +4,7 @@
  * There is no booking, payment, reminder or watch tool: such calls are rejected as unknown tools.
  */
 import { z } from "zod";
-import { DayExprSchema, GoalPatchSchema } from "../goal/schema.ts";
+import { DayExprSchema, LlmGoalPatchSchema } from "../goal/schema.ts";
 import { analyze, applyPatch, type SearchCandidate } from "../goal/state.ts";
 import { formatJalaliFa, monthNamesIn, resolveDay } from "../goal/dates.ts";
 import type { GoalPatch, TripGoal } from "../goal/schema.ts";
@@ -71,12 +71,19 @@ const CompareArgs = z.object({}).strict();
 
 const jsonSchema = (s: z.ZodType) => { const j = z.toJSONSchema(s) as Record<string, unknown>; delete j.$schema; return j; };
 
-export const TOOL_SPECS: ToolSpec[] = [
-  { name: "update_trip_goal", description: "Record what the user said in THIS message (as stated, no guessing). Returns the merged goal, missing fields, conflicts and assumptions to confirm. Call it before any search whenever the user gives or changes trip details.", parameters: jsonSchema(GoalPatchSchema) },
-  { name: "compare_trip_options", description: "When the goal is ready (no missing fields, conflicts or unconfirmed assumptions): runs the bounded searches for the planned dates with the real provider, re-searches stale results, and returns a deterministic price comparison. Prices come only from this tool.", parameters: jsonSchema(CompareArgs) },
-  { name: "search_flights", description: "Ad-hoc one-way flight search with the real provider, e.g. when the user asks about one leg only. Dates as stated (calendar + parts).", parameters: jsonSchema(SearchFlightsArgs) },
+/** The tools the chat LLM sees (Phase 2B: 2 tools; the ad-hoc searches are hidden to save ~1k tokens per request). */
+export const CHAT_TOOL_SPECS: ToolSpec[] = [
+  { name: "update_trip_goal", description: "Record what the user said in THIS message, as stated. Returns the merged goal, what is missing, conflicts and assumptions to confirm.", parameters: jsonSchema(LlmGoalPatchSchema) },
+  { name: "compare_trip_options", description: "When the goal is ready: runs bounded real searches and returns a deterministic comparison. Prices come only from this tool.", parameters: jsonSchema(CompareArgs) },
+];
+/** Ad-hoc search tools: still implemented and validated, offered only when a runner is created with tools "all". */
+export const SEARCH_TOOL_SPECS: ToolSpec[] = [
+  { name: "search_flights", description: "Ad-hoc one-way flight search with the real provider.", parameters: jsonSchema(SearchFlightsArgs) },
   { name: "search_hotels", description: "Ad-hoc hotel search for a stay (single room) with the real provider.", parameters: jsonSchema(SearchHotelsArgs) },
 ];
+export const ALL_TOOL_SPECS: ToolSpec[] = [...CHAT_TOOL_SPECS, ...SEARCH_TOOL_SPECS];
+/** Kept for callers that list every tool. */
+export const TOOL_SPECS = ALL_TOOL_SPECS;
 
 function err(tool: string, reason: string, extra: Record<string, unknown> = {}): ToolOutcome {
   return { ok: false, content: JSON.stringify({ ok: false, error: reason, ...extra }), events: [{ type: "rejected", tool, reason }] };
@@ -125,7 +132,10 @@ function hotelView(r: SearchResult<NormalizedHotel>) {
 const meta = <T>(r: SearchResult<T>, now: Date) => ({ provider: r.provider, status: r.status, checkedAt: r.checkedAt, fresh: isFresh(r.checkedAt, now), count: r.items.length, totalAvailable: r.totalAvailable, truncated: r.truncated, notes: r.notes.map((n) => cleanText(n, 160)), error: r.error && { cause: r.error.cause } });
 
 export class ToolRunner {
-  constructor(private s: Session) {}
+  private readonly allowed: Set<string>;
+  constructor(private s: Session, opts: { tools?: "chat" | "all" } = {}) {
+    this.allowed = new Set((opts.tools === "all" ? ALL_TOOL_SPECS : CHAT_TOOL_SPECS).map((t) => t.name));
+  }
 
   private budgetLeft() { return MAX_SEARCHES_PER_TURN - this.s.turnSearches; }
 
@@ -160,10 +170,12 @@ export class ToolRunner {
   async run(name: string, rawArgs: string): Promise<ToolOutcome> {
     const now = this.s.now();
     const events: ToolEvent[] = [];
+    // A tool that was not offered to this LLM is rejected, even if it exists in code.
+    if (!this.allowed.has(name)) return err(name, `unknown tool '${cleanText(name, 40)}'. Available: ${[...this.allowed].join(", ")}. PEYVA cannot book, pay or set reminders.`);
     switch (name) {
       case "update_trip_goal": {
-        const p = parseArgs(GoalPatchSchema, rawArgs);
-        if (!p.ok) return err(name, p.reason);
+        const p = parseArgs(LlmGoalPatchSchema, rawArgs);
+        if (!p.ok) return err(name, p.reason + ' (dates and months must be {"text": "<the user\'s words>"})');
         const mm = monthMismatch(patchDates(p.value), this.s.lastUserText());
         if (mm) return err(name, mm);
         const cc = crossCheckPatch(p.value, this.s.lastUserText(), this.s.goal);

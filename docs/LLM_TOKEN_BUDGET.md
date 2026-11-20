@@ -53,7 +53,7 @@ Groq applies limits per organization, and whichever limit is reached first appli
 (`maxRetries: 1`), which very likely explains the 78–151 s turns. That is a hypothesis: the run did not log retries. The daily token
 limit, not the request limit, caps testing at well under 20 turns a day.
 
-## 4. Planned reductions (not implemented yet)
+## 4. Reductions (1–3 implemented 2026-11-20, see §6; 4 not yet)
 
 | # | Change | Fixed tokens involved | Saving | Effect on safety |
 |---|---|---:|---|---|
@@ -64,6 +64,34 @@ limit, not the request limit, caps testing at well under 20 turns a day.
 
 None of the deterministic checks (cross-check against the user's words, month mismatch, price/date/action guards, freshness)
 depends on the token-heavy parts, so all four keep them intact.
+
+## 6. Results of proposals 1–3 (implemented)
+
+What changed:
+- **1:** the LLM gets `LlmGoalPatchSchema`. Dates and months are `{"text": …}` only, with shorter descriptions. The internal `GoalPatch`
+  keeps the structured forms for code and tests. A number-based date from the LLM now fails validation, so the live month bug can no
+  longer even be expressed.
+- **2:** the chat LLM is offered 2 tools (`update_trip_goal`, `compare_trip_options`). `search_flights` / `search_hotels` stay in code,
+  still validated, available to a `ToolRunner` created with `tools: "all"`. In chat, a call to them is rejected as an unknown tool.
+- **3:** `compactHistory()` replaces tool results from earlier turns with short summaries before each request. Message count and
+  tool-call ids are unchanged, and the current turn's results stay complete.
+
+Measured (estimates at characters ÷ 3.5; real token counts still need a live run):
+
+| Measure | Before | After | Change |
+|---|---:|---:|---:|
+| Fixed per request (`peyva:token-budget`) | 12,485 chars ≈ 3,567 tok | 5,240 chars ≈ 1,497 tok | −58% |
+| `update_trip_goal` definition | ≈ 1,665 tok | ≈ 638 tok | −62% |
+| History sent at turn 5 of the scripted conversation | 7,602 chars | 3,435 chars | −55% |
+| Whole 5-turn conversation, 12 requests (`test/token-diet.test.ts`) | 194,673 chars ≈ 55,600 tok | 86,463 chars ≈ 24,700 tok | −56% |
+
+Against the free tier (best case, same caveats as §3):
+- At ≈ 2,060 tokens per request on average (24,700 / 12), about 3.9 requests fit in a minute, so a 2–3 request turn should no longer
+  hit the per-minute limit.
+- A full 5-turn test conversation uses ≈ 12% of the daily 200,000 tokens instead of ≈ 28%.
+
+Behaviour: all 62 agent tests and 35 spike tests pass, and the scripted conversation ends with the same deterministic 4★ total
+(28,681,300 Toman).
 
 ## 5. How to verify a change
 

@@ -7,7 +7,7 @@
  *
  *   bun run peyva:token-budget
  */
-import { TOOL_SPECS } from "../agent/tools.ts";
+import { CHAT_TOOL_SPECS as TOOL_SPECS } from "../agent/tools.ts";
 import { systemPrompt } from "../agent/prompt.ts";
 import { Session } from "../agent/session.ts";
 import type { TravelSearchProvider } from "../travel/index.ts";

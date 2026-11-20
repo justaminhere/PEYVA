@@ -78,3 +78,30 @@ export const emptyGoal = (): TripGoal => ({
   adults: null, children: 0, rooms: null, roomsDerived: false, budget: null, minimumHotelStars: null,
   preferences: [], monitoringRequested: false, pendingAssumptions: [], invalid: [],
 });
+
+/**
+ * The patch schema the LLM sees (Phase 2B token diet). Same fields as GoalPatch, but dates and months are ONLY the
+ * user's own words ({text}); code parses them. Shorter descriptions. A valid LlmGoalPatch is a valid GoalPatch.
+ */
+const Text = (max: number) => z.object({ text: z.string().min(1).max(max) }).strict();
+export const LlmGoalPatchSchema = z.object({
+  intent: IntentSchema.optional().describe("trip = flights + hotel"),
+  origin: z.string().min(1).max(60).optional().describe("as the user wrote it"),
+  destination: z.string().min(1).max(60).optional().describe("as the user wrote it"),
+  departureDate: Text(40).optional().describe("user's exact words, e.g. ۱۹ آذر ۱۴۰۵"),
+  returnDate: Text(40).optional(),
+  dateWindow: z.object({ from: Text(40), to: Text(40) }).strict().optional().describe("a range, e.g. from ۱۰ دی to ۲۰ دی"),
+  month: Text(30).optional().describe("a whole month, e.g. دی"),
+  datesFlexible: z.boolean().optional(),
+  nights: z.number().int().min(1).max(30).optional(),
+  adults: z.number().int().min(1).max(9).optional(),
+  children: z.number().int().min(0).max(8).optional(),
+  rooms: z.number().int().min(1).max(5).optional(),
+  budgetText: z.string().min(1).max(80).optional().describe("user's budget words verbatim"),
+  budgetScope: z.enum(["total", "per_person"]).optional(),
+  minimumHotelStars: z.number().int().min(1).max(5).optional(),
+  preferences: z.array(z.string().min(1).max(80)).max(10).optional(),
+  monitoringRequested: z.boolean().optional(),
+  confirmAssumptions: z.boolean().optional().describe("only after the user said yes"),
+}).strict();
+export type LlmGoalPatch = z.infer<typeof LlmGoalPatchSchema>;

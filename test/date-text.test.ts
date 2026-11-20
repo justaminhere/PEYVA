@@ -47,14 +47,15 @@ test("monthMismatch rejects a number that contradicts the named month", () => {
   expect(monthMismatch([{ calendar: "jalali", year: 1405, month: 11, day: 19 }], "همون روز")).toBeNull(); // no month named: nothing to check
 });
 
-test("REGRESSION (live run 2026-11-20 14:08 UTC): '۱۹ آذر ۱۴۰۵' sent as Bahman is rejected, the retry with text searches 2026-12-10", async () => {
+test("REGRESSION (live run 2026-11-20 14:08 UTC): '۱۹ آذر ۱۴۰۵' sent as Bahman (month 11) is rejected, the retry with text searches 2026-12-10", async () => {
   const p = new RecordedProvider(() => now);
   const s = new Session(p, () => now);
   const llm = new ScriptedLlm([
     tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", nights: 3, adults: 1, budgetText: "۳۰ میلیون" })), say("تاریخ؟"),
     // exactly what qwen/qwen3.8-27b did live: month 11 instead of 9
     tools(call("update_trip_goal", { departureDate: { calendar: "jalali", year: 1405, month: 11, day: 19 } })),
-    (msgs) => { expect(msgs.at(-1)!.content as string).toContain("month mismatch"); return tools(call("update_trip_goal", { departureDate: { text: "۱۹ آذر ۱۴۰۵" } })); },
+    // Since the token diet the LLM schema has no number-based dates at all, so the wrong call fails validation outright.
+    (msgs) => { expect(msgs.at(-1)!.content as string).toContain("dates and months must be"); return tools(call("update_trip_goal", { departureDate: { text: "۱۹ آذر ۱۴۰۵" } })); },
     tools(call("compare_trip_options", {})),
     say("برای ۱۹ آذر ۱۴۰۵ تا ۲۲ آذر ۱۴۰۵، گزینه ۱ در بودجه است."),
   ]);

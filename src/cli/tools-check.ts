@@ -17,7 +17,7 @@ const arg = (f: string) => { const i = process.argv.indexOf(f); return i > 0 ? p
 const [jy, jm, jd] = toLatinDigits(arg("--date") ?? "1405-09-19").split("-").map(Number);
 const patch: Record<string, unknown> = {
   intent: "trip", origin: "تهران", destination: "کیش",
-  departureDate: { calendar: "jalali", year: jy, month: jm, day: jd },
+  departureDate: { text: `${jy}/${jm}/${jd}` },
   nights: Number(arg("--nights") ?? 3), adults: Number(arg("--adults") ?? 1),
 };
 if (arg("--rooms")) patch.rooms = Number(arg("--rooms"));

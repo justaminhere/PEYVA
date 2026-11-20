@@ -2,8 +2,8 @@
  * One user turn: bounded LLM <-> tool loop. The LLM decides when to call tools; every call is validated by
  * ToolRunner. Final text passes deterministic guards. Nothing here fabricates a reply when the LLM fails.
  */
-import type { LlmClient } from "../llm/types.ts";
-import { TOOL_SPECS, ToolRunner, type ToolEvent } from "./tools.ts";
+import type { ChatMessage, LlmClient } from "../llm/types.ts";
+import { CHAT_TOOL_SPECS, ToolRunner, type ToolEvent } from "./tools.ts";
 import { systemPrompt } from "./prompt.ts";
 import type { Session } from "./session.ts";
 import { allowedPrices } from "../compare/engine.ts";
@@ -14,6 +14,29 @@ import { crossCheckPatch } from "./tools.ts";
 import { todayInTehran } from "../travel/index.ts";
 
 export const MAX_ITERATIONS = 6;
+
+/**
+ * Phase 2B token diet: tool results from earlier turns are replaced by short summaries before each request.
+ * The current goal is always in the system prompt, and the comparison table was already shown to the user,
+ * so the full JSON of old results only costs tokens. Results of the current turn stay complete.
+ */
+export function compactHistory(msgs: ChatMessage[]): ChatMessage[] {
+  let lastUser = -1;
+  for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i]!.role === "user") { lastUser = i; break; }
+  return msgs.map((m, i) => (i < lastUser && m.role === "tool" ? { ...m, content: summarizeToolResult(m.content) } : m));
+}
+
+export function summarizeToolResult(content: string): string {
+  try {
+    const j = JSON.parse(content) as Record<string, any>;
+    if (j.ok === false) return JSON.stringify({ ok: false, error: String(j.error ?? "").slice(0, 120) });
+    if (j.goal && j.analysis) return JSON.stringify({ ok: true, note: "goal updated (the current goal is in the system prompt)" });
+    if (Array.isArray(j.candidates)) return JSON.stringify({ ok: true, note: "comparison already shown to the user", best: j.best ?? null,
+      candidates: j.candidates.map((c: any) => ({ n: c.n, datesFa: c.datesFa, status: c.status })) });
+    if (j.results) return JSON.stringify({ ok: j.ok, note: "search already done", status: j.status, count: j.count });
+  } catch { /* not JSON: fall through */ }
+  return content.slice(0, 200);
+}
 export const MAX_TOOL_CALLS_PER_TURN = 12;
 
 export interface TurnResult {
@@ -47,7 +70,7 @@ const LLM_ERROR_FA: Record<string, string> = {
 export async function runTurn(s: Session, llm: LlmClient, userText: string): Promise<TurnResult> {
   s.messages.push({ role: "user", content: userText });
   s.turnSearches = 0;
-  const runner = new ToolRunner(s);
+  const runner = new ToolRunner(s, { tools: "chat" });
   const events: ToolEvent[] = [];
   const warnings: string[] = [];
   const compareBefore = s.lastComparison?.at ?? null;
@@ -63,13 +86,13 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
 
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
     const c0 = performance.now();
-    const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...s.messages, ...(correction ? [{ role: "system" as const, content: correction }] : [])], TOOL_SPECS);
+    const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...compactHistory(s.messages), ...(correction ? [{ role: "system" as const, content: correction }] : [])], CHAT_TOOL_SPECS);
     correction = null;
     llmCalls.push({ ms: Math.round(performance.now() - c0), ok: res.ok, ...(res.ok ? { usage: res.usage } : { cause: res.cause }) });
     // Some providers (e.g. Groq) reject a malformed tool call server-side with HTTP 400. Retry once with a correction.
     if (!res.ok && res.cause === "bad_request" && /tool call validation failed|tool_use_failed|not in request\.tools|failed to call a function/i.test(res.message) && !retriedInvalidCall) {
       retriedInvalidCall = true;
-      correction = `Your previous tool call was rejected by the API (${res.message.slice(0, 160)}). Use exactly one of these tool names: ${TOOL_SPECS.map((t) => t.name).join(", ")}, with JSON arguments matching their schema.`;
+      correction = `Your previous tool call was rejected by the API (${res.message.slice(0, 160)}). Use exactly one of these tool names: ${CHAT_TOOL_SPECS.map((t) => t.name).join(", ")}, with JSON arguments matching their schema.`;
       continue;
     }
     if (!res.ok) {
