@@ -1,0 +1,5 @@
+{"at":"2026-11-20T13:49:11.704Z","type":"provider_call","tool":"mb_search_flights","args":{"origin":"THR","destination":"KIH","date":"2026-12-10","adults":1,"children":0,"sort":"cheapest","limit":15},"outcome":"ok","latencyMs":1817}
+{"at":"2026-11-20T13:49:12.880Z","type":"provider_call","tool":"mb_search_flights","args":{"origin":"KIH","destination":"THR","date":"2026-12-13","adults":1,"children":0,"sort":"cheapest","limit":15},"outcome":"ok","latencyMs":1175}
+{"at":"2026-11-20T13:49:14.769Z","type":"provider_call","tool":"mb_find_place","args":{"query":"کیش","mode":"hotel","limit":10},"outcome":"ok","latencyMs":1888}
+{"at":"2026-11-20T13:49:18.224Z","type":"provider_call","tool":"mb_search_hotels","args":{"city":"kish","check_in":"2026-12-10","check_out":"2026-12-13","sort":"cheapest","limit":20},"outcome":"ok","latencyMs":3454}
+{"at":"2026-11-20T13:49:18.231Z","type":"tools_check","patch":{"intent":"trip","origin":"تهران","destination":"کیش","departureDate":{"calendar":"jalali","year":1405,"month":9,"day":19},"nights":3,"adults":1},"ok":true,"blocked":null,"totals":[25114300],"reasons":[["hotel: provider returned 20 of 27 matches (list truncated)"]]}

@@ -1,8 +1,8 @@
 # PEYVA Phase 2A: Conversational Agent Core
 
 - **Date:** 2026-11-20
-- **Status: PARTIAL.** The agent core is implemented and tested. Live LLM execution is **NOT VERIFIED**: no runtime API key is
-  configured yet. The live run of the tool layer against MrBilit is pending on the developer machine (§4).
+- **Status: PARTIAL.** The agent core is implemented and tested. The tool layer is **VERIFIED live** against MrBilit on the
+  developer machine (§4). Live LLM execution is **NOT VERIFIED** yet: a Groq key was added, but no chat run has been recorded.
 
 ## 1. What was built
 
@@ -79,14 +79,17 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
 | Persian goal extraction **by a real LLM** | needs a configured key | **NOT VERIFIED** |
 | Multi-turn clarification + merge | `test/agent.test.ts` (the spec's 3-turn dialogue), `test/goal-state.test.ts` | VERIFIED (scripted LLM) |
 | Goal validated before any tool runs | compare before ready → rejected, 0 provider calls; 6 kinds of invalid tool calls rejected, 0 provider calls | VERIFIED (unit) |
-| Uses the existing real MCP integration | `McpTravelProvider` via `src/travel/index.ts`. `peyva:tools-check` reached `mb_search_flights` in the sandbox and got the expected network block | VERIFIED wiring; live data **PENDING** on Omarchy |
-| Real flight + hotel data | recorded real MrBilit responses (2026-11-20) through the whole agent → 25,114,300 Toman, equal to the Phase 1 hand check | VERIFIED on recorded data; live re-run PENDING |
+| Uses the existing real MCP integration | `bun run peyva:tools-check` on Omarchy, 13:49 and 13:50 UTC: 8/8 MrBilit calls ok (`evidence/phase2a/`) | **VERIFIED live** |
+| Real flight + hotel data | live tools-check: 2 flight searches + hotel lookup + hotel search per run, package 25,114,300 Toman in both runs (hotels: 20 of 27, truncation reported); also recorded data in tests | **VERIFIED live** (tool layer, no LLM) |
 | Deterministic package arithmetic | `test/compare.test.ts`: stars, capacity, rooms ×2, budget, seats, not-on-sale, truncation | VERIFIED |
 | Comprehensible Persian result | rendered table checked in tests (Jalali dates, Persian digits and separators, provider, check time, "نه رزرو") | VERIFIED (render) |
 | Honest errors and stale data | LLM timeout/auth/429/malformed/network (real adapter against a local test server); stale re-search after 15 min; circuit breaker | VERIFIED |
 | Prompt injection in provider content | injected hotel name with a bidi override: fenced, cleaned, a "book_hotel" call it provokes is rejected, numbers unchanged | VERIFIED (unit) |
 | Unauthorized actions | unknown tools (book, alert) rejected; false booking claim → visible warning | VERIFIED (unit) |
 | No mock presented as live | `peyva:chat` exits 2 without config; the scripted LLM and fake servers live only in `test/support/` | VERIFIED |
+
+Executed on the developer machine (Omarchy, 2026-11-20):
+- `bun run peyva:tools-check` ×2: 8/8 provider calls ok, latencies 0.6–3.5 s, total 25,114,300 Toman, exit 0.
 
 Executed in the sandbox VM (2026-11-20):
 - `bun run typecheck`: 0 errors in root and spike.
