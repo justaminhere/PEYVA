@@ -45,7 +45,7 @@ const needles = (city: string) => [city.trim().toLowerCase()];
 const ADAPTERS: Record<ProviderId, Adapter> = {
   mrbilit: {
     hotelPlaceTool: "mb_find_place",
-    flightArgs: (q) => ({ origin: q.origin, destination: q.destination, date: q.date, adults: q.adults, sort: "cheapest", limit: 15 }),
+    flightArgs: (q) => ({ origin: q.origin, destination: q.destination, date: q.date, adults: q.adults, children: q.children ?? 0, sort: "cheapest", limit: 15 }),
     hotelPlaceArgs: (city) => ({ query: city, mode: "hotel", limit: 10 }),
     pickHotelPlace: (d, city) => pickMrbilitHotelCity(d, needles(city)),
     // Prices are for one room and do not depend on guest count (upstream docs); adults is checked in normalization.
@@ -53,7 +53,7 @@ const ADAPTERS: Record<ProviderId, Adapter> = {
   },
   flytoday: {
     hotelPlaceTool: "ft_find_hotel_place",
-    flightArgs: (q) => ({ origin: q.origin, destination: q.destination, date: q.date, adults: q.adults, sort: "cheapest", limit: 15 }),
+    flightArgs: (q) => ({ origin: q.origin, destination: q.destination, date: q.date, adults: q.adults, children: q.children ?? 0, sort: "cheapest", limit: 15 }),
     hotelPlaceArgs: (city) => ({ query: city, limit: 10 }),
     pickHotelPlace: (d, city) => pickFlytodayHotelCity(d, needles(city)),
     // flytoday defaults adults to 2: always pass it.

@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "typeRoots": ["./experiments/travel-mcp-spike/node_modules/@types"],
+    "types": ["bun"]
+  },
+  "include": ["src", "test"]
+}

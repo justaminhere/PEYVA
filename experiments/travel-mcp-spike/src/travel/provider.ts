@@ -21,6 +21,8 @@ export interface FlightQuery {
   /** Gregorian YYYY-MM-DD. */
   date: string;
   adults: number;
+  /** Children 2-11; the fare total then covers the whole party. Default 0. */
+  children?: number;
 }
 
 export interface HotelQuery {
@@ -87,6 +89,8 @@ export function validateFlightQuery(q: FlightQuery, now: Date): string[] {
   if (!realDate(q.date)) e.push(`date '${q.date}' is not a real YYYY-MM-DD date`);
   else if (q.date < todayInTehran(now)) e.push(`date ${q.date} is in the past`);
   if (!Number.isInteger(q.adults) || q.adults < 1 || q.adults > 9) e.push("adults must be an integer 1..9");
+  const ch = q.children ?? 0;
+  if (!Number.isInteger(ch) || ch < 0 || ch > 8) e.push("children must be an integer 0..8");
   return e;
 }
 

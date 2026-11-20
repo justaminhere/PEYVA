@@ -14,3 +14,10 @@ experiments/*/output/
 .DS_Store
 .idea/
 .vscode/
+
+# sensitive evidence (never commit personal data captured during tests)
+**/evidence/**/private/
+*.sensitive.*
+
+# PEYVA CLI session logs and run artifacts
+/output/
