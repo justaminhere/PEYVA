@@ -46,8 +46,9 @@ test("measured: prompt size of a 5-turn conversation, before vs after the diet",
   const llm = new ScriptedLlm([
     tools(call("update_trip_goal", { intent: "trip", destination: "کیش", nights: 3 })), say("از کجا؟"),
     tools(call("update_trip_goal", { origin: "تهران", adults: 1, budgetText: "۳۰ میلیون" })), say("تاریخ؟"),
-    tools(call("update_trip_goal", { departureDate: { text: "۱۹ آذر ۱۴۰۵" } })), tools(call("compare_trip_options", {})), say("گزینه ۱."),
-    tools(call("update_trip_goal", { minimumHotelStars: 4 })), tools(call("compare_trip_options", {})), say("گزینه ۱."),
+    // auto-compare: the update that makes the goal ready already carries the comparison, so no compare_trip_options round trip
+    tools(call("update_trip_goal", { departureDate: { text: "۱۹ آذر ۱۴۰۵" } })), say("گزینه ۱."),
+    tools(call("update_trip_goal", { minimumHotelStars: 4 })), say("گزینه ۱."),
     tools(call("update_trip_goal", { monitoringRequested: true })), say("فعلاً پایش ندارم."),
   ]);
   for (const u of ["می‌خوام یه سفر سه شبه به کیش برم", "تهران، یک نفر، بودجه ۳۰ میلیون", "۱۹ آذر ۱۴۰۵", "فقط هتل چهار ستاره به بالا باشه", "اگه قیمت مناسب شد بهم خبر بده"])
@@ -71,7 +72,9 @@ test("measured: prompt size of a 5-turn conversation, before vs after the diet",
     after += sysLen + wrapped(r.tools) + size(hist);
     before += sysLen + 9791 + size(s.messages.slice(0, hist.length));
   }
-  console.log(JSON.stringify({ wholeConversationChars: { before, after, reductionPct: Math.round((1 - after / before) * 100) },
+  // "before" here = the SAME requests with pre-diet tool JSON and uncompacted history. It does not add back the compare round
+  // trips that auto-compare removed, so compare "after" across versions (docs/LLM_TOKEN_BUDGET.md §8), not this ratio alone.
+  console.log(JSON.stringify({ requests: llm.requests.length, wholeConversationChars: { before, after, reductionPct: Math.round((1 - after / before) * 100) },
     approxTokens: { before: Math.round(before / 3.5), after: Math.round(after / 3.5) } }));
   expect(sentHistory).toBeLessThan(rawHistory * 0.6);
   expect(s.lastComparison!.results[0]!.options[0]!.totalToman).toBe(28_681_300); // behaviour unchanged (4★)

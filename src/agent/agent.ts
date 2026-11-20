@@ -30,7 +30,8 @@ export function summarizeToolResult(content: string): string {
   try {
     const j = JSON.parse(content) as Record<string, any>;
     if (j.ok === false) return JSON.stringify({ ok: false, error: String(j.error ?? "").slice(0, 120) });
-    if (j.goal && j.analysis) return JSON.stringify({ ok: true, note: "goal updated (the current goal is in the system prompt)" });
+    if (j.goal && j.analysis) return JSON.stringify({ ok: true, note: "goal updated (the current goal is in the system prompt)",
+      ...(j.comparison ? { comparison: JSON.parse(summarizeToolResult(JSON.stringify(j.comparison))) } : {}) });
     if (Array.isArray(j.candidates)) return JSON.stringify({ ok: true, note: "comparison already shown to the user", best: j.best ?? null,
       candidates: j.candidates.map((c: any) => ({ n: c.n, datesFa: c.datesFa, status: c.status })) });
     if (j.results) return JSON.stringify({ ok: j.ok, note: "search already done", status: j.status, count: j.count });
@@ -83,7 +84,7 @@ export function rateLimitHint(message: string): string {
 export async function runTurn(s: Session, llm: LlmClient, userText: string): Promise<TurnResult> {
   s.messages.push({ role: "user", content: userText });
   s.turnSearches = 0;
-  const runner = new ToolRunner(s, { tools: "chat" });
+  const runner = new ToolRunner(s, { tools: "chat", autoCompare: true });
   const events: ToolEvent[] = [];
   const warnings: string[] = [];
   const compareBefore = s.lastComparison?.at ?? null;

@@ -48,7 +48,8 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
 3. **Unit and scope disclosures.** A budget without a unit is read as Toman (normal Iranian usage) and disclosed. Rial is converted
    (÷10). A budget without a stated scope counts as the trip total and is disclosed. Implausibly small budgets (< 100,000 Toman) are a
    conflict, because they suggest a Rial/Toman mix-up.
-4. **`compare_trip_options` runs the searches itself.** Once the goal is ready, the LLM calls one tool. Code derives the dates
+4. **`compare_trip_options` runs the searches itself.** Once the goal is ready, the LLM calls one tool. Since Phase 2B, the
+   `update_trip_goal` call that makes the goal ready triggers the same comparison automatically (`docs/LLM_TOKEN_BUDGET.md` §8). Code derives the dates
    (fixed, or at most 3 candidates from a flexible range: start / middle / end), searches through the boundary, reuses fresh results,
    re-searches results older than 15 min, and compares. Ad-hoc `search_flights` / `search_hotels` exist with the same validation, but are hidden from the chat LLM since the token diet (`docs/LLM_TOKEN_BUDGET.md`).
 5. **Prices come from code only.** The CLI prints the comparison table from the engine. The LLM is told to refer to options by

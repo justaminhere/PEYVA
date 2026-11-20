@@ -112,6 +112,13 @@ export function monthMismatch(patchDates: unknown[], userText: string): string |
   return null;
 }
 
+/** Patch fields that change what is searched or how results are compared (monitoring / preferences do not). */
+const SEARCH_RELEVANT = ["intent", "origin", "destination", "departureDate", "returnDate", "dateWindow", "month", "datesFlexible", "nights",
+  "adults", "children", "rooms", "budgetText", "budgetScope", "minimumHotelStars", "confirmAssumptions"] as const;
+export function affectsSearch(p: Record<string, unknown>): boolean {
+  return SEARCH_RELEVANT.some((k) => p[k] !== undefined);
+}
+
 function patchDates(p: GoalPatch): unknown[] {
   return [p.departureDate, p.returnDate, p.dateWindow?.from, p.dateWindow?.to, p.month].filter(Boolean);
 }
@@ -133,8 +140,10 @@ const meta = <T>(r: SearchResult<T>, now: Date) => ({ provider: r.provider, stat
 
 export class ToolRunner {
   private readonly allowed: Set<string>;
-  constructor(private s: Session, opts: { tools?: "chat" | "all" } = {}) {
+  private readonly autoCompare: boolean;
+  constructor(private s: Session, opts: { tools?: "chat" | "all"; autoCompare?: boolean } = {}) {
     this.allowed = new Set((opts.tools === "all" ? ALL_TOOL_SPECS : CHAT_TOOL_SPECS).map((t) => t.name));
+    this.autoCompare = opts.autoCompare ?? false;
   }
 
   private budgetLeft() { return MAX_SEARCHES_PER_TURN - this.s.turnSearches; }
@@ -184,9 +193,15 @@ export class ToolRunner {
         const after = crossCheckPatch({}, this.s.lastUserText(), this.s.goal).unrecorded;
         const a = analyze(this.s.goal, now);
         events.push({ type: "goal_updated", missing: a.missing, ready: a.ready });
+        // Auto-compare (Phase 2B): once the goal is ready and this update changed something that matters for the search,
+        // the app runs the same bounded, read-only, deterministic comparison right away. That saves the LLM a round trip.
+        // Not when details the user gave are still unrecorded: the LLM must fix the goal first.
+        const comparison = this.autoCompare && a.ready && after.length === 0 && affectsSearch(cc.patch as Record<string, unknown>)
+          ? await this.compareNow(a, events) : undefined;
         return { ok: true, events, content: JSON.stringify({ ok: true, goal: this.s.goalSummary(), analysis: a,
           checks: { droppedBecauseUserDidNotSayIt: cc.dropped, mentionedButNotRecorded: after,
-            instruction: after.length ? "Call update_trip_goal again and include the mentionedButNotRecorded items, as stated by the user." : undefined } }) };
+            instruction: after.length ? "Call update_trip_goal again and include the mentionedButNotRecorded items, as stated by the user." : undefined },
+          ...(comparison ? { comparison, comparisonNote: "The app already searched and compared; the table is shown to the user. Answer now; do not call compare_trip_options." } : {}) }) };
       }
       case "search_flights": {
         const p = parseArgs(SearchFlightsArgs, rawArgs);
@@ -226,11 +241,21 @@ export class ToolRunner {
         if (!p.ok) return err(name, p.reason);
         const a = analyze(this.s.goal, now);
         if (!a.ready) return err(name, "goal is not ready", { missing: a.missing, conflicts: a.conflicts, pendingAssumptions: a.pendingAssumptions });
+        return { ok: true, events, content: JSON.stringify(await this.compareNow(a, events)) };
+      }
+      default:
+        return err(name, `unknown tool '${cleanText(name, 40)}'. PEYVA can only update the goal, search and compare; it cannot book, pay or set reminders.`);
+    }
+  }
+
+  /** Runs the bounded comparison for the analysed plan and returns the compact, fenced result for the LLM. */
+  private async compareNow(a: ReturnType<typeof analyze>, events: ToolEvent[]) {
+    const now = this.s.now();
         const results = await this.compareAll(a.plan, events);
         this.s.lastComparison = { at: now.toISOString(), goal: structuredClone(this.s.goal), planNote: a.planNote, disclosures: a.disclosures, results };
         events.push({ type: "compare", candidates: results.length });
         const best = bestOverall(results);
-        return { ok: true, events, content: JSON.stringify({
+        return {
           ok: true, planNote: a.planNote, disclosures: a.disclosures, blocked: this.s.blocked,
           note: "The app shows the full comparison table to the user. Refer to options by number; do not restate or compute prices.",
           best: best && { candidate: best.candidateIndex + 1, totalToman: best.option.totalToman, withinBudget: best.option.withinBudget },
@@ -238,11 +263,7 @@ export class ToolRunner {
             datesFa: `${formatJalaliFa(c.candidate.departure)} تا ${formatJalaliFa(c.candidate.return)}`, status: c.status, reasons: c.reasons, stale: c.stale, options: c.options.length,
             cheapest: c.options[0] && fence({ totalToman: c.options[0].totalToman, withinBudget: c.options[0].withinBudget,
               hotel: c.options[0].hotel && cleanText(c.options[0].hotel.name, 60), airline: c.options[0].outbound && cleanText(c.options[0].outbound.airline, 40) }) })),
-        }) };
-      }
-      default:
-        return err(name, `unknown tool '${cleanText(name, 40)}'. PEYVA can only update the goal, search and compare; it cannot book, pay or set reminders.`);
-    }
+        };
   }
 
   private async compareAll(plan: SearchCandidate[], events: ToolEvent[]): Promise<CandidateComparison[]> {

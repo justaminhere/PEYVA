@@ -116,6 +116,28 @@ Evidence: `evidence/phase2a/chat-live-3-groq-qwen-token-diet.jsonl`. Real token 
   every exit of a turn, and the rate-limit reply names the limit (daily or per minute) and the wait time.
 - **Wasted request:** in turn 4 the model first sent `update_trip_goal({})`. Empty updates are now refused, and the prompt forbids them.
 
+## 8. Auto-compare (implemented after chat 3)
+
+**Change:** when an `update_trip_goal` call makes the goal ready, and changes something that matters for the search (route, dates,
+travellers, rooms, budget, stars, intent, a confirmation), the app runs the same bounded, read-only, deterministic comparison at
+once and returns it inside the update result. `compare_trip_options` stays available for explicit re-checks. There is no
+auto-compare while the goal is not ready, for monitoring- or preference-only changes, or while details the user gave are still
+unrecorded (`test/auto-compare.test.ts`).
+
+**Trade-off:** the LLM no longer decides *when* to search once the goal is complete; code does. The search itself is unchanged:
+validated, bounded and read-only, and the LLM still decides what goes into the goal. That trade buys one request less per comparison turn.
+
+Measured on the same scripted 5-turn conversation (characters; tokens ≈ chars ÷ 3.5, which under-counts by ~15–18%, see §7):
+
+| Version | LLM requests | Chars sent (whole conversation) |
+|---|---:|---:|
+| Token diet (§6) | 12 | 86,463 |
+| + auto-compare | 10 | 72,886 (−16%) |
+
+A comparison turn now takes 2 requests (update incl. comparison, then the reply) instead of 3–4. At the chat 3 request sizes
+(≈ 2.5–3.4k tokens), that is ≈ 5–6k tokens, under the 8,000 TPM limit when the previous turn was more than a minute earlier.
+This is still **to be confirmed live**.
+
 ## 5. How to verify a change
 
 1. `bun run peyva:token-budget` before and after: the fixed estimate must drop as expected.
