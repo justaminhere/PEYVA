@@ -4,7 +4,9 @@
  *
  *   draft --approve(shown hash)--> active --pause--> paused --resume--> active
  *   any non-final --cancel--> canceled;  active/paused/draft --expire (worker)--> expired
- *   active/paused --updateConstraints--> draft (monitoring stops until the new conditions are approved)
+ *   draft --updateConstraints--> draft (new conditions, approval still needed)
+ *   active/paused --updateConstraints--> same status + a *proposed* change; the approved conditions keep running
+ *     --approve(proposed hash)--> new conditions approved and in force;  --rejectChange--> proposal dropped, nothing else changes
  */
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, lte, ne, notInArray, sql } from "drizzle-orm";
@@ -48,10 +50,14 @@ export class GoalService {
     return { ok: true, goal: goal!, summaryFa: v.ex.describeFa(v.c) };
   }
 
-  /** Approve exactly the conditions the user was shown (by hash). */
+  /**
+   * Approve exactly the conditions the user was shown (by hash): activates a draft, or puts a proposed change of an
+   * active/paused goal into force.
+   */
   async approve(userId: string, goalId: number, shownHash: string, now = new Date()): Promise<{ ok: true; goal: Goal } | Fail> {
     const g = await this.get(userId, goalId);
     if (!g) return { ok: false, reason: "not_found" };
+    if ((g.status === "active" || g.status === "paused") && g.proposedHash) return this.applyChange(g, shownHash, now);
     if (g.status !== "draft") return { ok: false, reason: "wrong_state", detail: g.status };
     if (g.constraintsHash !== shownHash) return { ok: false, reason: "stale_approval" };
     if (g.expiresAt <= now) return { ok: false, reason: "expired" };
@@ -61,19 +67,56 @@ export class GoalService {
     return row ? { ok: true, goal: row } : { ok: false, reason: "wrong_state" };
   }
 
-  /** A material edit: new constraints go back to draft and need a new approval; monitoring stops meanwhile. */
-  async updateConstraints(userId: string, goalId: number, raw: unknown, now = new Date()): Promise<{ ok: true; goal: Goal; summaryFa: string; changed: boolean } | Fail> {
+  /**
+   * A material edit. A draft simply gets the new conditions (still unapproved). An active or paused goal keeps its
+   * approved conditions running and records the new ones as a proposal (`hash` = what the user must approve).
+   */
+  async updateConstraints(userId: string, goalId: number, raw: unknown, now = new Date()):
+    Promise<{ ok: true; goal: Goal; summaryFa: string; changed: boolean; proposal: boolean; hash: string } | Fail> {
     const g = await this.get(userId, goalId);
     if (!g) return { ok: false, reason: "not_found" };
     if (FINAL.includes(g.status)) return { ok: false, reason: "wrong_state", detail: g.status };
     const v = this.validate(g.type, raw);
     if (!v.ok) return v;
     const hash = constraintsHash(v.c);
-    if (hash === g.constraintsHash) return { ok: true, goal: g, summaryFa: v.ex.describeFa(v.c), changed: false };
-    const [row] = await this.db.update(goals).set({ structuredConstraints: v.c as object, constraintsHash: hash, name: v.ex.nameFa(v.c), status: "draft",
-      approvedAt: null, approvedConstraintsHash: null, nextCheckAt: null, expiresAt: v.ex.expiresAt(v.c), updatedAt: now })
-      .where(and(eq(goals.id, goalId), eq(goals.userId, userId))).returning();
-    return { ok: true, goal: row!, summaryFa: v.ex.describeFa(v.c), changed: true };
+    if (hash === g.constraintsHash) {
+      const [row] = g.proposedHash ? await this.db.update(goals).set({ proposedConstraints: null, proposedHash: null, proposedAt: null, updatedAt: now })
+        .where(and(eq(goals.id, goalId), eq(goals.userId, userId))).returning() : [g];
+      return { ok: true, goal: row!, summaryFa: v.ex.describeFa(v.c), changed: false, proposal: false, hash };
+    }
+    if (v.ex.expiresAt(v.c) <= now) return { ok: false, reason: "expired", detail: "all dates are in the past" };
+    if (g.status === "draft") {
+      const [row] = await this.db.update(goals).set({ structuredConstraints: v.c as object, constraintsHash: hash, name: v.ex.nameFa(v.c),
+        expiresAt: v.ex.expiresAt(v.c), updatedAt: now }).where(and(eq(goals.id, goalId), eq(goals.userId, userId), eq(goals.status, "draft"))).returning();
+      return row ? { ok: true, goal: row, summaryFa: v.ex.describeFa(v.c), changed: true, proposal: false, hash } : { ok: false, reason: "wrong_state" };
+    }
+    const [row] = await this.db.update(goals).set({ proposedConstraints: v.c as object, proposedHash: hash, proposedAt: now, updatedAt: now })
+      .where(and(eq(goals.id, goalId), eq(goals.userId, userId), inArray(goals.status, ["active", "paused"]))).returning();
+    return row ? { ok: true, goal: row, summaryFa: v.ex.describeFa(v.c), changed: true, proposal: true, hash } : { ok: false, reason: "wrong_state" };
+  }
+
+  /** The user approved a proposed change (by its hash): the new conditions replace the approved ones. */
+  private async applyChange(g: Goal, shownHash: string, now: Date): Promise<{ ok: true; goal: Goal } | Fail> {
+    if (g.proposedHash !== shownHash) return { ok: false, reason: "stale_approval" };
+    const v = this.validate(g.type, g.proposedConstraints);
+    if (!v.ok) return v;
+    const expiresAt = v.ex.expiresAt(v.c);
+    if (expiresAt <= now) return { ok: false, reason: "expired" };
+    const [row] = await this.db.update(goals).set({
+      structuredConstraints: v.c as object, constraintsHash: shownHash, approvedConstraintsHash: shownHash, approvedAt: now, name: v.ex.nameFa(v.c), expiresAt,
+      proposedConstraints: null, proposedHash: null, proposedAt: null, consecutiveFailures: 0, updatedAt: now,
+      // an active goal checks the new conditions soon; a paused one stays paused
+      ...(g.status === "active" ? { nextCheckAt: now } : {}),
+    }).where(and(eq(goals.id, g.id), eq(goals.userId, g.userId), eq(goals.proposedHash, shownHash), inArray(goals.status, ["active", "paused"]))).returning();
+    return row ? { ok: true, goal: row } : { ok: false, reason: "wrong_state" };
+  }
+
+  /** The user rejected a proposed change: only the proposal is removed; status, conditions and schedule are untouched. */
+  async rejectChange(userId: string, goalId: number, shownHash: string, now = new Date()): Promise<{ ok: true; goal: Goal } | Fail> {
+    const [row] = await this.db.update(goals).set({ proposedConstraints: null, proposedHash: null, proposedAt: null, updatedAt: now })
+      .where(and(eq(goals.id, goalId), eq(goals.userId, userId), eq(goals.proposedHash, shownHash))).returning();
+    if (row) return { ok: true, goal: row };
+    return (await this.get(userId, goalId)) ? { ok: false, reason: "stale_approval" } : { ok: false, reason: "not_found" };
   }
 
   private async transition(userId: string, goalId: number, from: GoalStatus[], set: Partial<typeof goals.$inferInsert>, now: Date) {
@@ -92,7 +135,7 @@ export class GoalService {
     return this.transition(userId, goalId, ["paused"], { status: "active", nextCheckAt: next }, now);
   }
   cancel(userId: string, goalId: number, now = new Date()) {
-    return this.transition(userId, goalId, ["draft", "active", "paused"], { status: "canceled", nextCheckAt: null }, now);
+    return this.transition(userId, goalId, ["draft", "active", "paused"], { status: "canceled", nextCheckAt: null, proposedConstraints: null, proposedHash: null, proposedAt: null }, now);
   }
 
   /** Worker housekeeping: anything past its expiry stops for good. */

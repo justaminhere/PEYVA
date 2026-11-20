@@ -24,6 +24,7 @@ export function tehranDateTime(d: Date): string {
 export function approvalQuestion(s: Session): string | null {
   const p = s.pending;
   if (!p) return null;
+  if (p.kind === "goal" && p.change) return `تغییر شرایط پیگیری #${toPersianDigits(p.goalId)} به این‌ها:\n${p.summaryFa}\nتا تأیید نکنی، پیگیری با شرایط فعلی ادامه دارد.\nاین تغییر اعمال شود؟ (بله / نه)`;
   if (p.kind === "goal") return `شرایط پیگیری قیمت (هدف #${toPersianDigits(p.goalId)}، فعلاً پیش‌نویس):\n${p.summaryFa}\nبررسی‌ها هر چند ساعت یک‌بار انجام می‌شوند؛ رزرو یا پرداختی انجام نمی‌شود.\nبا همین مشخصات پیگیری را فعال کنم؟ (بله / نه)`;
   return `این ترجیح را برای سفرهای بعدی به خاطر بسپارم؟ «${describePreference(p)}» (بله / نه)`;
 }
@@ -47,6 +48,15 @@ export async function decidePending(s: Session, approve: boolean): Promise<strin
   const no = !approve;
   s.pending = null;
   const now = s.now();
+  if (p.kind === "goal" && p.change) {
+    // A change to an approved goal: "no" keeps the approved conditions and monitoring exactly as they were.
+    const r = no ? await pers.goals.rejectChange(s.userId, p.goalId, p.hash, now) : await pers.goals.approve(s.userId, p.goalId, p.hash, now);
+    if (!r.ok) return `انجام نشد: ${r.reason === "stale_approval" ? "این تغییر دیگر معتبر نیست (شرایط عوض شده)." : r.reason}`;
+    const g = r.goal; // persisted state
+    const status = g.status === "active" ? "فعال" : g.status === "paused" ? "متوقف" : g.status;
+    if (no) return `باشه، تغییری اعمال نشد. پیگیری #${toPersianDigits(g.id)} با شرایط قبلی ادامه دارد (وضعیت ذخیره‌شده: ${status}).`;
+    return `شرایط تازه اعمال شد ✅ (هدف #${toPersianDigits(g.id)}، وضعیت ذخیره‌شده: ${status})${g.status === "active" && g.nextCheckAt ? `.\nبررسی بعدی: ${tehranDateTime(g.nextCheckAt)} به وقت تهران` : "."}`;
+  }
   if (p.kind === "goal") {
     if (no) {
       const r = await pers.goals.cancel(s.userId, p.goalId, now);

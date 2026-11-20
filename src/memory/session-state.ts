@@ -82,7 +82,9 @@ export async function resumeLatest(s: Session, store: ConversationStore, opts: {
   let droppedPending: string | null = null;
   if (pending?.kind === "goal") {
     const g = await pers.goals.get(s.userId, pending.goalId);
-    if (!g || g.status !== "draft" || g.constraintsHash !== pending.hash) { droppedPending = `goal #${pending.goalId} is no longer the same draft`; pending = null; }
+    const stillValid = pending.change ? !!g && (g.status === "active" || g.status === "paused") && g.proposedHash === pending.hash
+      : !!g && g.status === "draft" && g.constraintsHash === pending.hash;
+    if (!stillValid) { droppedPending = `goal #${pending.goalId} no longer has this ${pending.change ? "proposed change" : "draft"}`; pending = null; }
   }
   s.goal = snap.goal;
   s.lastComparison = snap.lastComparison;

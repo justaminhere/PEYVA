@@ -70,16 +70,18 @@ export function ResultTickets({ cards }: { cards: ComparisonCards }) {
 
 export function ApprovalPanel({ pending, busy, onDecide }: { pending: NonNullable<PendingView>; busy: boolean; onDecide: (approve: boolean) => void }) {
   const goal = pending.kind === "goal";
+  const change = pending.kind === "goal" && pending.change;
   return (
     <section role="dialog" aria-labelledby="approval-title" className="stamp-in rounded-lg border-2 border-firouzeh bg-paper px-5 py-4">
-      <h2 id="approval-title" className="font-bold">{goal ? "پیگیری قیمت با این شرط‌ها فعال شود؟" : "این ترجیح برای سفرهای بعدی ذخیره شود؟"}</h2>
+      <h2 id="approval-title" className="font-bold">{change ? `شرایط پیگیری #${pending.goalIdFa} به این‌ها تغییر کند؟` : goal ? "پیگیری قیمت با این شرط‌ها فعال شود؟" : "این ترجیح برای سفرهای بعدی ذخیره شود؟"}</h2>
       <p className="mt-2 whitespace-pre-line leading-8">{goal ? pending.summaryFa : pending.textFa}</p>
-      {goal ? <p className="mt-2 text-sm text-ink-soft">بررسی‌ها با فاصلهٔ دست‌کم ۶ ساعت انجام می‌شوند و فقط وقتی worker روشن است. رزرو یا پرداختی انجام نمی‌شود.</p> : null}
+      {change ? <p className="mt-2 text-sm text-ink-soft">تا تأیید نکنی، پیگیری با شرایط فعلی ادامه دارد. اگر «تغییر نده» بزنی، همه‌چیز مثل قبل می‌ماند.</p>
+        : goal ? <p className="mt-2 text-sm text-ink-soft">بررسی‌ها با فاصلهٔ دست‌کم ۶ ساعت انجام می‌شوند و فقط وقتی worker روشن است. رزرو یا پرداختی انجام نمی‌شود.</p> : null}
       <div className="mt-4 flex gap-3">
         <button type="button" disabled={busy} onClick={() => onDecide(true)}
-          className="rounded-md bg-firouzeh px-5 py-2 font-medium text-white hover:bg-firouzeh-deep disabled:opacity-50">{goal ? "فعال کن" : "ذخیره کن"}</button>
+          className="rounded-md bg-firouzeh px-5 py-2 font-medium text-white hover:bg-firouzeh-deep disabled:opacity-50">{change ? "تغییر بده" : goal ? "فعال کن" : "ذخیره کن"}</button>
         <button type="button" disabled={busy} onClick={() => onDecide(false)}
-          className="rounded-md px-4 py-2 text-ink-soft hover:bg-mist disabled:opacity-50">{goal ? "فعال نکن" : "ذخیره نکن"}</button>
+          className="rounded-md px-4 py-2 text-ink-soft hover:bg-mist disabled:opacity-50">{change ? "تغییر نده" : goal ? "فعال نکن" : "ذخیره نکن"}</button>
       </div>
     </section>
   );
@@ -102,6 +104,7 @@ export function GoalsPanel({ goals, busy, onAction }: { goals: GoalView[]; busy:
             <div><dt className="inline">آخرین بررسی موفق: </dt><dd className="inline">{g.lastSuccess ? `${g.lastSuccess.atFa}، ${g.lastSuccess.statusFa}${g.lastSuccess.totalFa ? ` (${g.lastSuccess.totalFa})` : ""}` : "هنوز نه"}</dd></div>
             {g.lastFailure ? <div><dt className="inline">آخرین خطا: </dt><dd className="inline">{g.lastFailure.atFa}، {g.lastFailure.reason}</dd></div> : null}
           </dl>
+          {g.changePendingFa ? <p className="mt-1 text-sm text-saffron">{g.changePendingFa}</p> : null}
           {g.summaryFa ? <details className="mt-1 text-sm"><summary className="cursor-pointer text-lapis">شرط‌ها</summary><p className="mt-1 whitespace-pre-line leading-7 text-ink-soft">{g.summaryFa}</p></details> : null}
           <div className="mt-2 flex gap-2 text-sm">
             {g.status === "active" ? <button type="button" disabled={busy} className="text-lapis hover:underline" onClick={() => onAction(g.id, "pause")}>توقف</button> : null}

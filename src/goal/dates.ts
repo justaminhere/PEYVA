@@ -194,6 +194,30 @@ export function parseDayText(text: string): StructDay | null {
   return null;
 }
 
+export interface DayRef { calendar: "jalali" | "gregorian"; month: number; day: number; year: number | null }
+
+/**
+ * A stay given as a day range in the user's own words: "۱۰ تا ۱۳ دسامبر ۲۰۲۶", "۱۹ آذر تا ۲۲ آذر", "۱۰ الی ۱۳ دی".
+ * The first day is the departure, the second the return. Used to check what the LLM recorded, never to fill it in.
+ */
+export function dayRangeIn(text: string): { from: DayRef; to: DayRef } | null {
+  const t = norm(text);
+  for (const [cal, list] of [["jalali", J_MONTHS], ["gregorian", G_MONTHS]] as const)
+    for (const [name, month] of list) {
+      const re = new RegExp(`(?:^|[^\\d])(\\d{1,2})(?:ام|م)?(?: (${name}))? ?(?:تا|الی|-|–) ?(\\d{1,2})(?:ام|م)? ${name}(?=$|[^\\p{L}])(?: (?:سال )?(\\d{4}))?`, "u");
+      const m = t.match(re);
+      if (!m) continue;
+      const year = m[4] ? Number(m[4]) : null;
+      return { from: { calendar: cal, month, day: Number(m[1]), year }, to: { calendar: cal, month, day: Number(m[3]), year } };
+    }
+  return null;
+}
+
+/** Same calendar day? A missing year on either side is not a mismatch. */
+export function sameDay(a: DayRef, b: { calendar?: string; month?: number; day?: number; year?: number | null } | null): boolean {
+  return !!b && b.calendar === a.calendar && b.month === a.month && b.day === a.day && (a.year === null || b.year == null || a.year === b.year);
+}
+
 /** "دی", "ماه دی", "دی ۱۴۰۵", "دسامبر" -> MonthExpr */
 export function parseMonthText(text: string): StructMonth | null {
   const t = norm(text).replace(/^ماه /, "");

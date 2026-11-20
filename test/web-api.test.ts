@@ -128,3 +128,17 @@ test("the guard is generic middleware (also used for the static UI)", async () =
   expect((await a.fetch(new Request("http://x/", { headers: { host: "127.0.0.1:1" } }))).status).toBe(200);
   expect((await a.fetch(new Request("http://x/", { headers: { host: "attacker.test" } }))).status).toBe(403);
 });
+
+test("budget change from the web: approval panel marks it as a change; 'تغییر نده' keeps the running goal untouched", async () => {
+  const w = await webApp(h, new ScriptedStreamingLlm([goalCall, tools(call("start_monitoring", {})), say("تأیید؟")]), now);
+  const id = (await w.chat(TEXT)).of("state")[0].pending.goalId;
+  await w.call("/api/approval", { method: "POST", body: JSON.stringify({ decision: "approve", goalId: id }) });
+  const before = (await w.ctx.goals.get("amin", id))!;
+  const st = (await w.chat(`/budget ${id} ۲۸ میلیون`)).of("state")[0];
+  expect(st.pending).toMatchObject({ kind: "goal", goalId: id, change: true, summaryFa: expect.stringContaining("۲۸٬۰۰۰٬۰۰۰") });
+  expect(st.goals[0]).toMatchObject({ id, status: "active", changePendingFa: expect.stringContaining("منتظر تأیید") });
+  const r = await (await w.call("/api/approval", { method: "POST", body: JSON.stringify({ decision: "reject", goalId: id }) })).json() as any;
+  expect(r.reply).toContain("با شرایط قبلی ادامه دارد");
+  expect(r.goals[0]).toMatchObject({ id, status: "active", changePendingFa: null, summaryFa: expect.stringContaining("۳۰٬۰۰۰٬۰۰۰") });
+  expect((await w.ctx.goals.get("amin", id))!).toMatchObject({ status: "active", constraintsHash: before.constraintsHash, nextCheckAt: before.nextCheckAt });
+});

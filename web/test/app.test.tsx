@@ -92,6 +92,21 @@ test("clicking 'فعال کن' activates the goal in PostgreSQL; the confirmatio
   expect((await w.ctx.goals.get("amin", row!.id))!.status).toBe("paused");
 });
 
+test("a budget change shows a change panel; 'تغییر نده' leaves the active goal as it was", async () => {
+  const w = await mount(new ScriptedStreamingLlm([goalCall, tools(call("start_monitoring", {})), say("تأیید می‌کنی؟")]));
+  await type(TEXT);
+  await act(async () => { fireEvent.click(within(await eventually(() => screen.getByRole("dialog"))).getByRole("button", { name: "فعال کن" })); });
+  await eventually(() => screen.getByText(/پیگیری فعال شد ✅/));
+  const [g] = await w.ctx.goals.list("amin");
+  await type(`/budget ${g!.id} ۲۸ میلیون`);
+  const dialog = await eventually(() => screen.getByRole("dialog", { name: /تغییر کند؟/ }));
+  expect(within(dialog).getByText(/۲۸٬۰۰۰٬۰۰۰/)).toBeTruthy();
+  expect(screen.getAllByTestId("goal")[0]!.textContent).toContain("منتظر تأیید");
+  await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "تغییر نده" })); });
+  await eventually(() => screen.getByText(/با شرایط قبلی ادامه دارد/));
+  expect(await w.ctx.goals.get("amin", g!.id)).toMatchObject({ status: "active", constraintsHash: g!.constraintsHash, proposedHash: null });
+});
+
 test("'فعال نکن' cancels the draft and nothing is monitored", async () => {
   const w = await mount(new ScriptedLlm([goalCall, tools(call("start_monitoring", {})), say("تأیید؟")]));
   await type(TEXT);

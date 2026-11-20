@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { DayExprSchema, LlmGoalPatchSchema } from "../goal/schema.ts";
 import { analyze, applyPatch, type SearchCandidate } from "../goal/state.ts";
-import { formatJalaliFa, monthNamesIn, resolveDay } from "../goal/dates.ts";
+import { dayRangeIn, formatJalaliFa, monthNamesIn, parseDayText, resolveDay, sameDay } from "../goal/dates.ts";
 import type { GoalPatch, TripGoal } from "../goal/schema.ts";
 import { signalsIn, type Signals } from "../goal/signals.ts";
 import { parseAmount, toToman } from "../goal/persian.ts";
@@ -27,7 +27,19 @@ export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGo
     if (!a || sig.budgetToman === null || toToman(a).toman !== sig.budgetToman) { delete p.budgetText; delete p.budgetScope; dropped.push(`budgetText: "${p.budgetText ?? patch.budgetText}" is not the amount in the user's words; copy it verbatim`); }
   }
   if (p.confirmAssumptions && !sig.affirmation) { delete p.confirmAssumptions; dropped.push("confirmAssumptions: the user has not said yes; ask them to confirm"); }
+  // Departure vs return (Phase 4A E2E: the LLM once put the only date the user gave into returnDate).
+  const range = dayRangeIn(userText);
+  const dayOf = (d: unknown) => (d && typeof d === "object" && "text" in d ? parseDayText(String((d as { text: string }).text)) : null) as { calendar?: string; month?: number; day?: number; year?: number | null } | null;
+  if (range) {
+    if (p.departureDate && !sameDay(range.from, dayOf(p.departureDate))) { delete p.departureDate; dropped.push(`departureDate: the user's range starts on day ${range.from.day}; use the first date of "<from> تا <to>" as departureDate`); }
+    if (p.returnDate && !sameDay(range.to, dayOf(p.returnDate))) { delete p.returnDate; dropped.push(`returnDate: the user's range ends on day ${range.to.day}; use the second date as returnDate`); }
+  } else if (p.returnDate && !p.departureDate && !goal.dates.departure && !/برگشت|بازگشت|برمی[‌ ]?گرد|برگرد|(^|\s)(تا|الی)(\s|$)|return/u.test(userText)) {
+    // A return date while no departure is known and the user said nothing about returning: the one date given is the departure.
+    delete p.returnDate; dropped.push("returnDate: no departure is known and the user did not mention a return; a single date is the departure (departureDate)");
+  }
+  if (p.returnDate && p.departureDate && JSON.stringify(p.returnDate) === JSON.stringify(p.departureDate)) { delete p.returnDate; dropped.push("returnDate: same as departureDate; the user gave one date"); }
   const unrecorded: string[] = [];
+  if (range && p.departureDate === undefined && !goal.dates.departure) unrecorded.push("dates: the user gave a range; set departureDate (first date) and returnDate (second date) with the month and year, e.g. {\"text\": \"۱۰ دسامبر ۲۰۲۶\"}");
   if (sig.travellers !== null && p.adults === undefined && goal.adults !== sig.travellers) unrecorded.push(`travellers: the user said ${sig.travellers} (set adults/children)`);
   if (sig.budgetToman !== null && !p.budgetText && goal.budget?.toman !== sig.budgetToman) unrecorded.push("budget: the user named an amount (copy it into budgetText)");
   if (sig.stars !== null && p.minimumHotelStars === undefined && goal.minimumHotelStars !== sig.stars) unrecorded.push(`minimumHotelStars: the user said ${sig.stars}`);

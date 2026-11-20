@@ -76,7 +76,8 @@ export async function runCommand(ctx: CommandContext, line: string): Promise<Com
       const r = await ctx.goals.updateConstraints(ctx.userId, id, { ...(g.structuredConstraints as object), budgetToman: toToman(amount).toman });
       if (!r.ok) return { text: failText(r) };
       if (!r.changed) return { text: "بودجه همان قبلی است؛ چیزی تغییر نکرد." };
-      return { text: `شرایط تغییر کرد؛ پیگیری تا تأیید دوباره متوقف است.`, pending: { kind: "goal", goalId: r.goal.id, hash: r.goal.constraintsHash, summaryFa: r.summaryFa } };
+      if (r.proposal) return { text: "تغییر پیشنهادی ثبت شد. تا تأییدش نکنی، پیگیری با شرایط فعلی ادامه دارد.", pending: { kind: "goal", goalId: r.goal.id, hash: r.hash, summaryFa: r.summaryFa, change: true } };
+      return { text: "شرایط پیش‌نویس تغییر کرد؛ هنوز فعال نیست.", pending: { kind: "goal", goalId: r.goal.id, hash: r.hash, summaryFa: r.summaryFa } };
     }
     case "/notifications": {
       const list = await ctx.notifications.list(ctx.userId, 10);

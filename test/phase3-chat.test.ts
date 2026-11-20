@@ -122,11 +122,17 @@ test("slash commands work without the LLM: list, show, pause, resume, budget cha
   expect((await handleMessage(s, llm, `/goal ${id}`, { commands: ctx, store })).reply).toContain("آخرین بررسی موفق: هنوز نه");
   expect((await handleMessage(s, llm, `/pause ${id}`, { commands: ctx, store })).reply).toContain("متوقف");
   expect((await handleMessage(s, llm, `/resume ${id}`, { commands: ctx, store })).reply).toContain("فعال");
+  const before = (await ctx.goals.get("amin", id))!;
   const b = await handleMessage(s, llm, `/budget ${id} ۲۰ میلیون`, { commands: ctx, store });
-  expect(b.reply).toContain("تا تأیید دوباره متوقف");
+  expect(b.reply).toContain("پیگیری با شرایط فعلی ادامه دارد");
   expect(b.reply).toContain("۲۰٬۰۰۰٬۰۰۰");
-  expect((await ctx.goals.get("amin", id))!.status).toBe("draft");
-  await handleMessage(s, llm, "بله", { commands: ctx, store });
+  expect((await ctx.goals.get("amin", id))!).toMatchObject({ status: "active", constraintsHash: before.constraintsHash });
+  const no = await handleMessage(s, llm, "نه", { commands: ctx, store }); // reject: everything stays as approved
+  expect(no.reply).toContain("با شرایط قبلی ادامه دارد");
+  expect((await ctx.goals.get("amin", id))!).toMatchObject({ status: "active", constraintsHash: before.constraintsHash, proposedHash: null, nextCheckAt: before.nextCheckAt });
+  await handleMessage(s, llm, `/budget ${id} ۲۰ میلیون`, { commands: ctx, store });
+  const yes = await handleMessage(s, llm, "بله", { commands: ctx, store });
+  expect(yes.reply).toContain("شرایط تازه اعمال شد");
   const g = (await ctx.goals.get("amin", id))!;
   expect(g).toMatchObject({ status: "active", approvedConstraintsHash: g.constraintsHash });
   expect((g.structuredConstraints as { budgetToman: number }).budgetToman).toBe(20_000_000);

@@ -63,6 +63,10 @@ export const goals = pgTable("goals", {
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   expiresAt: ts("expires_at").notNull(),
+  /** A change the user asked for but has not approved yet. The approved conditions above stay in force meanwhile. */
+  proposedConstraints: jsonb("proposed_constraints"),
+  proposedHash: text("proposed_hash"),
+  proposedAt: ts("proposed_at"),
 }, (t) => [
   index("goals_due_idx").on(t.status, t.nextCheckAt),
   index("goals_user_idx").on(t.userId),

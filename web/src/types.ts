@@ -9,8 +9,9 @@ export interface GoalView {
   nextCheckFa: string | null; approvedFa: string | null; expiresFa: string | null; totalChecksFa: string;
   lastSuccess: { atFa: string; statusFa: string; totalFa: string | null } | null;
   lastFailure: { atFa: string; reason: string } | null;
+  changePendingFa: string | null;
 }
-export type PendingView = { kind: "goal"; goalId: number; goalIdFa: string; summaryFa: string } | { kind: "preference"; key: string; textFa: string } | null;
+export type PendingView = { kind: "goal"; goalId: number; goalIdFa: string; summaryFa: string; change: boolean } | { kind: "preference"; key: string; textFa: string } | null;
 export interface ToolEventView { type: string; textFa: string }
 export interface StateView {
   userId: string; info: { llm: string; telegram: boolean; db: string } | null; pending: PendingView;

@@ -14,6 +14,8 @@ export interface GoalView {
   nextCheckFa: string | null; approvedFa: string | null; expiresFa: string | null; totalChecksFa: string;
   lastSuccess: { atFa: string; statusFa: string; totalFa: string | null } | null;
   lastFailure: { atFa: string; reason: string } | null;
+  /** A proposed change waiting for approval (the approved conditions above still apply). */
+  changePendingFa: string | null;
 }
 
 export async function goalView(ctx: CommandContext, g: Goal): Promise<GoalView> {
@@ -29,6 +31,7 @@ export async function goalView(ctx: CommandContext, g: Goal): Promise<GoalView> 
     totalChecksFa: toPersianDigits(checks?.totalChecks ?? 0),
     lastSuccess: ok ? { atFa: when(ok.checkedAt)!, statusFa: CHECK_FA[ok.status] ?? ok.status, totalFa: total ? `${formatToman(total)} تومان` : null } : null,
     lastFailure: bad ? { atFa: when(bad.checkedAt)!, reason: bad.errorReason ?? "خطا" } : null,
+    changePendingFa: g.proposedHash ? "تغییر شرایط منتظر تأیید است؛ فعلاً شرایط قبلی اجرا می‌شود." : null,
   };
 }
 
@@ -38,10 +41,10 @@ export async function goalViews(ctx: CommandContext): Promise<GoalView[]> {
 }
 
 /** What waits for the user's approval. The constraints hash never leaves the server. */
-export type PendingView = { kind: "goal"; goalId: number; goalIdFa: string; summaryFa: string } | { kind: "preference"; key: string; textFa: string } | null;
+export type PendingView = { kind: "goal"; goalId: number; goalIdFa: string; summaryFa: string; change: boolean } | { kind: "preference"; key: string; textFa: string } | null;
 export function pendingView(s: Session): PendingView {
   const p = s.pending;
   if (!p) return null;
-  return p.kind === "goal" ? { kind: "goal", goalId: p.goalId, goalIdFa: toPersianDigits(p.goalId), summaryFa: p.summaryFa }
+  return p.kind === "goal" ? { kind: "goal", goalId: p.goalId, goalIdFa: toPersianDigits(p.goalId), summaryFa: p.summaryFa, change: !!p.change }
     : { kind: "preference", key: p.key, textFa: describePreference(p) };
 }

@@ -15,6 +15,13 @@
       "when": 1795199701366,
       "tag": "0001_conversation_state",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795203557792,
+      "tag": "0002_goal_proposals",
+      "breakpoints": true
     }
   ]
 }

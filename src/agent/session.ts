@@ -12,7 +12,7 @@ export interface Persistence { db: Db; goals: GoalService; prefs: PreferenceStor
 
 /** Something only the user can approve. The app (not the LLM) resolves it from the user's next reply. */
 export type PendingConfirmation =
-  | { kind: "goal"; goalId: number; hash: string; summaryFa: string }
+  | { kind: "goal"; goalId: number; hash: string; summaryFa: string; /** a change to an approved goal (not a new draft) */ change?: boolean }
   | { kind: "preference"; key: string; value: unknown; sourceMessageId: number | null };
 
 export interface ComparisonSnapshot { at: string; goal: TripGoal; planNote: string | null; disclosures: string[]; results: CandidateComparison[] }
