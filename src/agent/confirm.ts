@@ -33,6 +33,15 @@ export async function resolvePending(s: Session, text: string): Promise<string |
   const yes = signalsIn(text).affirmation && !NO.test(text);
   const no = NO.test(text) && !signalsIn(text).affirmation;
   if (!yes && !no) return null;
+  return decidePending(s, yes);
+}
+
+/** The single approval path (text "بله"/"نه" or a UI button): executes the database operation, replies from its result. */
+export async function decidePending(s: Session, approve: boolean): Promise<string | null> {
+  const p = s.pending;
+  const pers = s.persistence;
+  if (!p || !pers) return null;
+  const no = !approve;
   s.pending = null;
   const now = s.now();
   if (p.kind === "goal") {

@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/vazirmatn/500.css";
+@import "@fontsource/vazirmatn/700.css";
+@import "@fontsource/lalezar/400.css";
+
+/* PEYVA palette: Isfahan tilework (firouzeh turquoise, lapis ink) on a cool mist ground; pomegranate for "over budget". */
+@theme {
+  --color-mist: #f2f6f5;
+  --color-paper: #ffffff;
+  --color-ink: #14233b;
+  --color-ink-soft: #4b5b72;
+  --color-firouzeh: #0c8a87;
+  --color-firouzeh-deep: #086664;
+  --color-firouzeh-wash: #dff1ef;
+  --color-lapis: #23407a;
+  --color-saffron: #d99a1e;
+  --color-anar: #b23a48;
+  --color-line: #c8d6d3;
+  --font-sans: "Vazirmatn", system-ui, sans-serif;
+  --font-display: "Lalezar", "Vazirmatn", sans-serif;
+}
+
+html { background: var(--color-mist); color: var(--color-ink); }
+body { font-family: var(--font-sans); font-feature-settings: "ss01"; }
+:focus-visible { outline: 3px solid var(--color-saffron); outline-offset: 2px; border-radius: 4px; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+
+/* The ticket: a perforated edge between the itinerary and the price stub. */
+.ticket { --notch: 10px; position: relative; }
+.ticket-stub { border-inline-start: 2px dashed var(--color-line); position: relative; }
+.ticket-stub::before, .ticket-stub::after {
+  content: ""; position: absolute; inset-inline-start: calc(-1 * var(--notch) - 1px); width: calc(var(--notch) * 2); height: calc(var(--notch) * 2);
+  border-radius: 50%; background: var(--color-mist);
+}
+.ticket-stub::before { top: calc(-1 * var(--notch) - 1px); }
+.ticket-stub::after { bottom: calc(-1 * var(--notch) - 1px); }
+@media (max-width: 640px) {
+  .ticket-stub { border-inline-start: 0; border-top: 2px dashed var(--color-line); }
+  .ticket-stub::before, .ticket-stub::after { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .caret::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--color-firouzeh); }
+  @keyframes blink { 50% { opacity: 0; } }
+  .stamp-in { animation: stamp 260ms ease-out; }
+  @keyframes stamp { from { transform: scale(1.06); opacity: 0; } to { transform: none; opacity: 1; } }
+}

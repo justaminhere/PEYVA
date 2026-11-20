@@ -32,8 +32,8 @@ export function fa(s: string): string {
   return out;
 }
 
-const tehranTime = (iso: string) => toPersianDigits(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)));
-const hhmm = (t: string | null) => (t ? toPersianDigits(t.slice(11, 16)) : "؟");
+export const tehranTime = (iso: string) => toPersianDigits(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)));
+export const hhmm = (t: string | null) => (t ? toPersianDigits(t.slice(11, 16)) : "؟");
 
 export function renderEvent(e: ToolEvent): string {
   switch (e.type) {

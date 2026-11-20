@@ -6,15 +6,23 @@
  * User and assistant messages are persisted when a database is configured.
  */
 import type { LlmClient } from "../llm/types.ts";
-import { runTurn, type TurnResult } from "./agent.ts";
+import { runTurn, type TurnHooks, type TurnResult } from "./agent.ts";
 import { approvalQuestion, resolvePending } from "./confirm.ts";
 import type { Session } from "./session.ts";
 import { runCommand, type CommandContext } from "../cli/commands.ts";
 import type { ConversationStore } from "../memory/conversations.ts";
 
-export interface HandleResult { reply: string; source: "approval" | "command" | "llm"; turn: TurnResult | null }
+export interface HandleResult {
+  /** Full text for text-only clients (terminal): the answer plus, if something now waits for approval, the question. */
+  reply: string;
+  /** The answer without the approval question (clients with an approval card show the question themselves). */
+  text: string;
+  question: string | null;
+  source: "approval" | "command" | "llm";
+  turn: TurnResult | null;
+}
 
-export async function handleMessage(s: Session, llm: LlmClient, text: string, opts: { commands?: CommandContext | null; store?: ConversationStore | null } = {}): Promise<HandleResult> {
+export async function handleMessage(s: Session, llm: LlmClient, text: string, opts: { commands?: CommandContext | null; store?: ConversationStore | null; hooks?: TurnHooks } = {}): Promise<HandleResult> {
   const conv = s.persistence?.conversationId ?? null;
   const store = opts.store ?? null;
   s.lastUserMessageId = store && conv ? await store.add(s.userId, conv, "user", text, s.now()) : null;
@@ -25,17 +33,18 @@ export async function handleMessage(s: Session, llm: LlmClient, text: string, op
 
   if (s.pending) {
     const resolved = await resolvePending(s, text);
-    if (resolved) return finish({ reply: resolved, source: "approval", turn: null });
+    if (resolved) return finish({ reply: resolved, text: resolved, question: null, source: "approval", turn: null });
   }
   if (text.startsWith("/") && opts.commands) {
     const r = await runCommand(opts.commands, text);
     if (r) {
       if (r.pending) s.pending = r.pending;
-      return finish({ reply: [r.text, approvalQuestion(s)].filter(Boolean).join("\n\n"), source: "command", turn: null });
+      const question = r.pending ? approvalQuestion(s) : null;
+      return finish({ reply: [r.text, question].filter(Boolean).join("\n\n"), text: r.text, question, source: "command", turn: null });
     }
   }
   const before = s.pending;
-  const turn = await runTurn(s, llm, text);
+  const turn = await runTurn(s, llm, text, opts.hooks);
   const question = s.pending && s.pending !== before ? approvalQuestion(s) : null;
-  return finish({ reply: question ? `${turn.reply}\n\n${question}` : turn.reply, source: "llm", turn });
+  return finish({ reply: question ? `${turn.reply}\n\n${question}` : turn.reply, text: turn.reply, question, source: "llm", turn });
 }

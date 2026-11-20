@@ -2,7 +2,7 @@
  * One user turn: bounded LLM <-> tool loop. The LLM decides when to call tools; every call is validated by
  * ToolRunner. Final text passes deterministic guards. Nothing here fabricates a reply when the LLM fails.
  */
-import type { ChatMessage, LlmClient } from "../llm/types.ts";
+import type { ChatMessage, LlmClient, LlmResponse } from "../llm/types.ts";
 import { CHAT_TOOL_SPECS, ToolRunner, chatToolSpecs, type ToolEvent } from "./tools.ts";
 import { systemPrompt } from "./prompt.ts";
 import type { Session } from "./session.ts";
@@ -81,7 +81,16 @@ export function rateLimitHint(message: string): string {
   return `${daily ? "سهمیهٔ روزانهٔ توکن یا درخواستِ سرویس مدل زبانی تمام شده است." : "سرویس مدل زبانی محدودیت نرخ دقیقه‌ای اعمال کرد."}${wait}`;
 }
 
-export async function runTurn(s: Session, llm: LlmClient, userText: string): Promise<TurnResult> {
+/** Live progress of a turn, for streaming UIs. All optional; the TurnResult stays the authoritative outcome. */
+export interface TurnHooks {
+  onLlmCall?(iteration: number): void;
+  /** Model text as it is generated (only with a streaming-capable LLM client). */
+  onTextDelta?(delta: string, iteration: number): void;
+  onToolStart?(name: string): void;
+  onToolDone?(name: string, ok: boolean, events: ToolEvent[]): void;
+}
+
+export async function runTurn(s: Session, llm: LlmClient, userText: string, hooks: TurnHooks = {}): Promise<TurnResult> {
   s.messages.push({ role: "user", content: userText });
   s.turnSearches = 0;
   const runner = new ToolRunner(s, { tools: "chat", autoCompare: true });
@@ -100,7 +109,12 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
 
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
     const c0 = performance.now();
-    const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...compactHistory(s.messages), ...(correction ? [{ role: "system" as const, content: correction }] : [])], chatToolSpecs(s));
+    const request: ChatMessage[] = [{ role: "system" as const, content: systemPrompt(s) }, ...compactHistory(s.messages), ...(correction ? [{ role: "system" as const, content: correction }] : [])];
+    hooks.onLlmCall?.(i);
+    const onText = hooks.onTextDelta;
+    const res: LlmResponse = onText && llm.stream
+      ? await llm.stream(request, chatToolSpecs(s), (d) => onText(d, i))
+      : await llm.complete(request, chatToolSpecs(s));
     correction = null;
     llmCalls.push({ ms: Math.round(performance.now() - c0), ok: res.ok, ...(res.ok ? { usage: res.usage } : { cause: res.cause }) });
     // Some providers (e.g. Groq) reject a malformed tool call server-side with HTTP 400. Retry once with a correction.
@@ -123,7 +137,9 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
           s.messages.push({ role: "tool", toolCallId: call.id, content: JSON.stringify({ ok: false, error: "tool call limit for this message reached; answer the user now" }) });
           continue;
         }
+        hooks.onToolStart?.(call.name);
         const out = await runner.run(call.name, call.arguments);
+        hooks.onToolDone?.(call.name, out.ok, out.events);
         calls.push({ name: call.name, arguments: call.arguments.slice(0, 600), ok: out.ok });
         events.push(...out.events);
         s.messages.push({ role: "tool", toolCallId: call.id, content: out.content });

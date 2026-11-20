@@ -19,4 +19,9 @@ export interface LlmClient {
   /** Human label for logs, e.g. "openai-compatible:gpt-x@api.example.com". Never contains secrets. */
   readonly label: string;
   complete(messages: ChatMessage[], tools: ToolSpec[]): Promise<LlmResponse>;
+  /**
+   * Same contract as complete(), but text is reported to onText as the provider produces it.
+   * The resolved response is the complete, authoritative result (tool calls fully assembled).
+   */
+  stream?(messages: ChatMessage[], tools: ToolSpec[], onText: (delta: string) => void): Promise<LlmResponse>;
 }

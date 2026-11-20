@@ -32,6 +32,55 @@ export class OpenAICompatibleClient implements LlmClient {
       return mapError(e);
     }
   }
+
+  /**
+   * Streaming variant (Server-Sent Events from the provider). Text deltas go to onText; tool-call fragments are
+   * assembled by index. If the provider rejects streaming itself before sending anything, falls back to complete().
+   */
+  async stream(messages: ChatMessage[], tools: ToolSpec[], onText: (delta: string) => void): Promise<LlmResponse> {
+    let sentAny = false;
+    try {
+      const stream = await this.client.chat.completions.create({
+        model: this.cfg.model,
+        temperature: 0,
+        stream: true,
+        stream_options: { include_usage: true },
+        messages: messages.map(toOpenAI),
+        ...(tools.length ? { tools: tools.map((t) => ({ type: "function" as const, function: t })), tool_choice: "auto" as const } : {}),
+      });
+      let text = "";
+      let finish: string | null = null;
+      let model: string | null = null;
+      let usage: { prompt: number | null; completion: number | null } | undefined;
+      const calls = new Map<number, { id: string; name: string; arguments: string }>();
+      for await (const chunk of stream) {
+        model ??= chunk.model ?? null;
+        const u = chunk.usage ?? (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage;
+        if (u) usage = { prompt: u.prompt_tokens ?? null, completion: u.completion_tokens ?? null };
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        const d = choice.delta;
+        if (d?.content) { text += d.content; sentAny = true; onText(d.content); }
+        for (const tc of d?.tool_calls ?? []) {
+          sentAny = true;
+          const cur = calls.get(tc.index) ?? { id: "", name: "", arguments: "" };
+          if (tc.id) cur.id = tc.id;
+          if (tc.function?.name) cur.name += tc.function.name;
+          if (tc.function?.arguments) cur.arguments += tc.function.arguments;
+          calls.set(tc.index, cur);
+        }
+        if (choice.finish_reason) finish = choice.finish_reason;
+      }
+      const toolCalls = [...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c).filter((c) => c.name);
+      if (!text && !toolCalls.length && !finish) return { ok: false, cause: "malformed", message: "stream ended without content" };
+      return { ok: true, text: text || null, toolCalls, finishReason: finish, model, usage };
+    } catch (e) {
+      const mapped = mapError(e);
+      // e.g. a provider that does not support stream_options: try the non-streaming request once.
+      if (!sentAny && !mapped.ok && mapped.cause === "bad_request" && /stream/i.test(mapped.message)) return this.complete(messages, tools);
+      return mapped;
+    }
+  }
 }
 
 function toOpenAI(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {

@@ -21,8 +21,8 @@ export interface CommandContext {
 }
 export interface CommandResult { text: string; pending?: PendingConfirmation }
 
-const STATUS_FA: Record<string, string> = { draft: "پیش‌نویس (منتظر تأیید)", active: "فعال", paused: "متوقف", canceled: "لغو شده", expired: "منقضی" };
-const CHECK_FA: Record<string, string> = { MATCH_FOUND: "گزینهٔ مطابق پیدا شد", NO_MATCH: "گزینه‌ای در بودجه نبود", INCOMPLETE_DATA: "دادهٔ کافی نبود", PROVIDER_ERROR: "خطای ارائه‌دهنده" };
+export const STATUS_FA: Record<string, string> = { draft: "پیش‌نویس (منتظر تأیید)", active: "فعال", paused: "متوقف", canceled: "لغو شده", expired: "منقضی" };
+export const CHECK_FA: Record<string, string> = { MATCH_FOUND: "گزینهٔ مطابق پیدا شد", NO_MATCH: "گزینه‌ای در بودجه نبود", INCOMPLETE_DATA: "دادهٔ کافی نبود", PROVIDER_ERROR: "خطای ارائه‌دهنده" };
 const when = (d: Date | null | undefined) => (d ? tehranDateTime(d) : "—");
 const num = (s: string | undefined) => (s && /^\d+$/.test(s) ? Number(s) : null);
 

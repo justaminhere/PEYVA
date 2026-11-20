@@ -24,3 +24,4 @@ experiments/*/output/
 
 # local embedded PostgreSQL data
 /.pgdata/
+/web/dist/

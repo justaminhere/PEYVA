@@ -21,3 +21,12 @@ export class ScriptedLlm implements LlmClient {
     return typeof s === "function" ? s(messages) : s;
   }
 }
+
+/** TEST-ONLY: the same script, delivered through the streaming interface (text split into small deltas). */
+export class ScriptedStreamingLlm extends ScriptedLlm {
+  async stream(messages: ChatMessage[], tools: ToolSpec[], onText: (d: string) => void): Promise<LlmResponse> {
+    const r = await this.complete(messages, tools);
+    if (r.ok && r.text) for (const part of r.text.match(/.{1,4}/gsu) ?? []) onText(part);
+    return r;
+  }
+}
