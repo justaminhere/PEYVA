@@ -46,6 +46,20 @@ test("after a server restart the latest conversation resumes: goal, LLM context,
   expect((await h.db.select().from(conversations))).toHaveLength(1); // continued, not duplicated
 });
 
+test("the resumed LLM context is the live session's context: failed-LLM replies and approval texts are not fed back as assistant turns", async () => {
+  const before = await webApp(h, new ScriptedStreamingLlm([say("از کجا حرکت می‌کنی؟"), { ok: false, cause: "rate_limit", message: "try again in 8m (TPD)" }]), now, { resumeMaxAgeMs: DAY });
+  await before.chat("می‌خوام برم کیش");
+  const failed = await before.chat("از تهران");
+  expect(failed.of("reply")[0].llmError).toContain("rate_limit");
+  const llm = new ScriptedLlm([say("باشه")]);
+  const after = await webApp(h, llm, now, { resumeMaxAgeMs: DAY });
+  const s = await (await after.call("/api/state")).json() as any;
+  expect(s.transcript.map((m: any) => m.role)).toEqual(["user", "assistant", "user", "assistant"]); // the user still sees everything
+  await after.chat("یک نفر");
+  const ctx = llm.requests[0]!.messages.filter((m) => m.role !== "system").map((m) => `${m.role}:${m.content}`);
+  expect(ctx).toEqual(["user:می‌خوام برم کیش", "assistant:از کجا حرکت می‌کنی؟", "user:از تهران", "user:یک نفر"]);
+});
+
 test("a pending approval is dropped on resume if the draft changed or was canceled meanwhile (e.g. from the CLI)", async () => {
   const before = await webApp(h, new ScriptedStreamingLlm([goalCall, tools(call("start_monitoring", {})), say("تأیید؟")]), now, { resumeMaxAgeMs: DAY });
   const id = (await before.chat(TEXT)).of("state")[0].pending.goalId;

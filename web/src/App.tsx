@@ -72,7 +72,7 @@ const EXAMPLES = [
 ];
 
 function Message({ m }: { m: Msg }) {
-  if (m.role === "user") return <div className="flex justify-end"><p className="max-w-[85%] whitespace-pre-line rounded-2xl bg-firouzeh-wash px-4 py-2.5 leading-8">{m.text}</p></div>;
+  if (m.role === "user") return <div className="flex justify-end"><p dir="auto" className="max-w-[85%] whitespace-pre-line rounded-2xl bg-firouzeh-wash px-4 py-2.5 leading-8">{m.text}</p></div>;
   const text = m.text || m.live;
   return (
     <article className="leading-8" aria-busy={m.streaming}>
@@ -101,7 +101,8 @@ export function App({ api }: { api: Api }) {
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.state().then((st) => dispatch({ t: "loaded", s: st }), (e: Error) => dispatch({ t: "load_failed", error: e.message })); }, [api]);
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [s.msgs]);
+  // New messages and a newly shown approval panel scroll into view, so its buttons are never left below the fold.
+  useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [s.msgs, s.pending]);
 
   async function send(text: string) {
     const t = text.trim();

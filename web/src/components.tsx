@@ -94,7 +94,7 @@ export function GoalsPanel({ goals, busy, onAction }: { goals: GoalView[]; busy:
       {goals.map((g) => (
         <li key={g.id} className="border-b border-line pb-4 last:border-0" data-testid="goal">
           <div className="flex items-start justify-between gap-2">
-            <span className="font-medium leading-7">{g.name}</span>
+            <span className="font-medium leading-7"><span className="text-ink-soft">#{g.idFa}</span> {g.name}</span>
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${STATUS_TONE[g.status] ?? "bg-mist"}`}>{g.statusFa}</span>
           </div>
           <dl className="mt-1 space-y-0.5 text-sm text-ink-soft">

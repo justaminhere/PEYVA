@@ -9,6 +9,9 @@ import { formatJalaliFa } from "../goal/dates.ts";
 import { describePreference } from "../memory/preferences.ts";
 import type { Session } from "./session.ts";
 
+/** Keeps a Latin command readable inside Persian text (Unicode directional isolate). */
+const cmd = (s: string) => `\u2066${s}\u2069`;
+
 const NO = /(^|\s)(نه|نخیر|خیر|نمی[‌ ]?خوام|لغو|ولش کن|no|cancel)(\s|$|[!.،])/iu;
 
 /** Stored as UTC; shown as a Jalali date and clock time in Asia/Tehran. */
@@ -52,11 +55,11 @@ export async function decidePending(s: Session, approve: boolean): Promise<strin
     const r = await pers.goals.approve(s.userId, p.goalId, p.hash, now);
     if (!r.ok) return `پیگیری فعال نشد: ${r.reason === "stale_approval" ? "شرایط از زمان نمایش تغییر کرده؛ دوباره بررسی کن." : r.reason}`;
     const g = r.goal; // persisted state
-    return `پیگیری فعال شد ✅ (هدف #${toPersianDigits(g.id)}، وضعیت ذخیره‌شده: ${g.status}).\nاولین بررسی: ${g.nextCheckAt ? tehranDateTime(g.nextCheckAt) : "؟"} به وقت تهران، به شرطی که worker در حال اجرا باشد (bun run peyva:worker).\nبرای دیدن یا توقف: /goals ، /pause ${g.id} ، /cancel ${g.id}`;
+    return `پیگیری فعال شد ✅ (هدف #${toPersianDigits(g.id)}، وضعیت ذخیره‌شده: ${g.status}).\nاولین بررسی: ${g.nextCheckAt ? tehranDateTime(g.nextCheckAt) : "؟"} به وقت تهران، به شرطی که worker در حال اجرا باشد (${cmd("bun run peyva:worker")}).\nبرای دیدن یا توقف: ${cmd("/goals")} ، ${cmd(`/pause ${g.id}`)} ، ${cmd(`/cancel ${g.id}`)}`;
   }
   if (no) return "باشه، ذخیره نکردم.";
   const r = await pers.prefs.confirm(s.userId, p.key, p.value, p.sourceMessageId, now);
   if (!r.ok) return `ذخیره نشد: ${r.reason}`;
   s.preferences = await pers.prefs.list(s.userId);
-  return `ذخیره شد ✅ «${describePreference({ key: r.preference.key, value: r.preference.value })}». با /prefs می‌بینی و با /pref delete ${r.preference.key} پاک می‌شود.`;
+  return `ذخیره شد ✅ «${describePreference({ key: r.preference.key, value: r.preference.value })}». با ${cmd("/prefs")} می‌بینی و با ${cmd(`/pref delete ${r.preference.key}`)} پاک می‌شود.`;
 }

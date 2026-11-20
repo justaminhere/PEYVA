@@ -96,7 +96,7 @@ export function makeTravelPriceExecutor(provider: TravelSearchProvider, opts: { 
       const dates = c.dates.mode === "fixed" ? `رفت ${formatJalaliFa(c.dates.departure)}، برگشت ${formatJalaliFa(c.dates.return)}`
         : `حرکت بین ${formatJalaliFa(c.dates.from)} و ${formatJalaliFa(addDays(c.dates.to, -c.nights))} (بازگشت تا ${formatJalaliFa(c.dates.to)})`;
       return [
-        `مسیر: ${c.origin.fa} ← → ${c.destination.fa}`,
+        `مسیر: ${c.origin.fa} به ${c.destination.fa} و برگشت`,
         `تاریخ: ${dates}؛ ${toPersianDigits(c.nights)} شب`,
         `مسافر: ${toPersianDigits(c.adults)} بزرگسال${c.children ? `، ${toPersianDigits(c.children)} کودک` : ""}؛ ${toPersianDigits(c.rooms)} اتاق`,
         `هتل: ${c.minimumHotelStars ? `حداقل ${toPersianDigits(c.minimumHotelStars)} ستاره` : "بدون شرط ستاره"}`,

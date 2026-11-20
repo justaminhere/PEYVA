@@ -1,7 +1,8 @@
 /**
  * Resuming an agent session after a server restart, from what PostgreSQL already holds:
- *   - the conversation's user/assistant messages (the LLM context; tool results are not stored and not needed,
- *     because the current goal is given to the LLM in the system prompt on every request),
+ *   - the LLM context: the user/assistant text messages exactly as the live session held them (tool results are
+ *     left out; the current goal is given to the LLM in the system prompt on every request). Replies that never came
+ *     from the LLM (errors, approvals, commands) are shown in the transcript but are not part of this context,
  *   - a versioned snapshot of the structured session state (trip goal, last comparison, pending approval),
  *     saved after every handled message.
  * Nothing is merged across conversations and nothing is invented: only the latest conversation is resumed, only
@@ -14,10 +15,18 @@ import type { ComparisonSnapshot, PendingConfirmation, Session } from "../agent/
 import type { ConversationStore } from "./conversations.ts";
 
 export const SNAPSHOT_VERSION = 1;
-export interface SessionSnapshot { v: 1; goal: TripGoal; lastComparison: ComparisonSnapshot | null; pending: PendingConfirmation | null; monitoringNoticeShown: boolean }
+export interface SessionSnapshot {
+  v: 1; goal: TripGoal; lastComparison: ComparisonSnapshot | null; pending: PendingConfirmation | null; monitoringNoticeShown: boolean;
+  /** LLM context (text turns only). Absent in early snapshots: then the persisted transcript is used. */
+  history?: { role: "user" | "assistant"; content: string }[];
+}
+const MAX_HISTORY = 20;
 
-export const snapshotOf = (s: Session): SessionSnapshot =>
-  ({ v: SNAPSHOT_VERSION, goal: s.goal, lastComparison: s.lastComparison, pending: s.pending, monitoringNoticeShown: s.monitoringNoticeShown });
+export const snapshotOf = (s: Session): SessionSnapshot => ({
+  v: SNAPSHOT_VERSION, goal: s.goal, lastComparison: s.lastComparison, pending: s.pending, monitoringNoticeShown: s.monitoringNoticeShown,
+  history: s.messages.flatMap((m): { role: "user" | "assistant"; content: string }[] => (m.role === "user" ? [{ role: "user", content: m.content }]
+    : m.role === "assistant" && !m.toolCalls?.length && m.content ? [{ role: "assistant", content: m.content }] : [])).slice(-MAX_HISTORY),
+});
 
 export async function saveSession(s: Session, store: ConversationStore) {
   const conv = s.persistence?.conversationId;
@@ -42,7 +51,8 @@ function parseSnapshot(raw: unknown): SessionSnapshot | null {
   if (!x || x.v !== SNAPSHOT_VERSION || !looksLikeGoal(x.goal)) return null;
   const cmp = x.lastComparison;
   if (cmp !== null && (typeof cmp !== "object" || !Array.isArray(cmp?.results))) return null;
-  return { v: 1, goal: x.goal, lastComparison: cmp ?? null, pending: x.pending ?? null, monitoringNoticeShown: !!x.monitoringNoticeShown };
+  const history = Array.isArray(x.history) ? x.history.filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string") : undefined;
+  return { v: 1, goal: x.goal, lastComparison: cmp ?? null, pending: x.pending ?? null, monitoringNoticeShown: !!x.monitoringNoticeShown, history };
 }
 
 export type ResumeOutcome =
@@ -64,8 +74,8 @@ export async function resumeLatest(s: Session, store: ConversationStore, opts: {
   const snap = parseSnapshot(c.state);
   if (!snap) return { resumed: false, reason: "unreadable_state" };
 
-  const rows = await store.recent(s.userId, c.id, opts.maxMessages ?? 20);
-  const msgs: ChatMessage[] = rows.map((m) => (m.role === "user" ? { role: "user" as const, content: m.content } : { role: "assistant" as const, content: m.content }));
+  const rows = snap.history ?? (await store.recent(s.userId, c.id, opts.maxMessages ?? MAX_HISTORY)).map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  const msgs: ChatMessage[] = rows.slice(-(opts.maxMessages ?? MAX_HISTORY)).map((m) => (m.role === "user" ? { role: "user" as const, content: m.content } : { role: "assistant" as const, content: m.content }));
   while (msgs.length && msgs[0]!.role !== "user") msgs.shift(); // the LLM context starts with the user
 
   let pending = snap.pending;
