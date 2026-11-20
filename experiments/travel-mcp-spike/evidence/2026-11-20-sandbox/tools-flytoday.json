@@ -1,0 +1,1284 @@
+[
+  {
+    "name": "ft_find_bus_city",
+    "title": "Find bus city",
+    "description": "Bus city ids (4 digits) for a city name, or the popular cities when query is empty.\n\nUse before ft_search_buses (Tehran '0001', Isfahan '0002').",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "City name, Persian or latin.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 10,
+          "description": "Max cities.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_bus_calendar",
+    "title": "Bus price calendar",
+    "description": "Cheapest bus seat price per day for the next weeks (the site's price strip), in one cheap call.\n\nCached daily minimums that can differ a little from a live search. Pick a day, then ft_search_buses.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "4-digit id from ft_find_bus_city, e.g. '0001' (Tehran).",
+          "pattern": "^\\d{4}$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "4-digit id from ft_find_bus_city, e.g. '0001' (Tehran).",
+          "pattern": "^\\d{4}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_search_buses",
+    "title": "Search buses",
+    "description": "Buses between two cities on a date: company, terminals, departure, bus type, seats left, price per seat.\n\nBusy routes list 100+ buses: narrow with facility, sort or limit. price_toman is per seat. No seat map.\nRate limited: never loop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "4-digit id from ft_find_bus_city, e.g. '0001' (Tehran).",
+          "pattern": "^\\d{4}$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "4-digit id from ft_find_bus_city, e.g. '0001' (Tehran).",
+          "pattern": "^\\d{4}$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Departure date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "sort": {
+          "default": "earliest",
+          "description": "Order.",
+          "enum": [
+            "cheapest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "facility": {
+          "default": null,
+          "description": "Only buses with this facility.",
+          "enum": [
+            "vip",
+            "sleeper",
+            "charger",
+            "monitor",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "available_only": {
+          "default": true,
+          "description": "Hide sold-out buses.",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 15,
+          "description": "Max buses.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_cip",
+    "title": "CIP airport services",
+    "description": "CIP / VIP airport lounge service with prices for a date and passenger mix, plus paid add-ons.\n\n`nationality` says which passports an offer is for (IKA lists one offer for Iranian passports and one for\nothers). price_per_passenger_toman is per person (tax included); total_toman the whole party; add-ons list\ntheir adult price.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "airport": {
+          "description": "'IKA' (Tehran) or 'MHD' (Mashhad): the only airports with CIP.",
+          "pattern": "^[A-Za-z]{3}$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Flight date YYYY-MM-DD, at most ~3 months ahead.",
+          "format": "date",
+          "type": "string"
+        },
+        "direction": {
+          "default": "departure",
+          "description": "Leaving from or landing at this airport.",
+          "enum": [
+            "departure",
+            "arrival"
+          ],
+          "type": "string"
+        },
+        "flight_type": {
+          "default": "international",
+          "description": "Kind of flight.",
+          "enum": [
+            "domestic",
+            "international"
+          ],
+          "type": "string"
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adults.",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children.",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants.",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Skip text clips and item caps; return full texts.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "airport",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_esim_plans",
+    "title": "eSIM plans",
+    "description": "eSIM data plans for a country with data amount, validity days and price, cheapest first.\n\nSingle countries only, no regional bundles. fare_code identifies the plan on flytoday.ir.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "country": {
+          "description": "Country name (English or Persian), ISO code or slug, e.g. 'turkey', 'AE'.",
+          "maxLength": 60,
+          "minLength": 2,
+          "type": "string"
+        },
+        "limit": {
+          "default": 15,
+          "description": "Max plans, cheapest first.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "country"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_visa",
+    "title": "Visa prices and requirements",
+    "description": "Visa services of Flytoday: the country list with from-prices, or one country's prices, documents and process.\n\nWithout country: visa type, from_price (in price_currency, often USD or EUR, not Toman) and processing time.\nWith country: price per visa type (foreign currency and Toman), validity, processing time and documents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "country": {
+          "default": null,
+          "description": "Country name (English or Persian) or slug, e.g. 'turkey', 'schengen'. Omit to list all.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_activities",
+    "title": "Search activities",
+    "description": "Tours, tickets and experiences in a destination that are on sale in the date range, with from-prices.\n\nOnly activities with a price in the range are listed. price_toman is the adult from-price; list_price_toman\nthe box-office price. other_regions lists alternatives to retry with region_id. Next: ft_activity(activity_id).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "Destination, English or Persian, e.g. 'Dubai'. Needed unless region_id is given.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region_id": {
+          "default": null,
+          "description": "Region id from an earlier call; skips the lookup.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "date_from": {
+          "default": null,
+          "description": "First day YYYY-MM-DD; default and minimum tomorrow.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date_to": {
+          "default": null,
+          "description": "Last day YYYY-MM-DD, max date_from + 90; default +30.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 20,
+          "description": "Max activities, cheapest first.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_activity",
+    "title": "Activity details",
+    "description": "One activity: description, highlights, options with adult prices, and the cheapest days in the range.\n\nprice_toman fields are adult prices. No availability in the range gives available=false: keep it wide\n(default about two months). Slow upstream (up to a minute).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "activity_id": {
+          "description": "Activity id from ft_activities.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "date_from": {
+          "default": null,
+          "description": "Calendar start YYYY-MM-DD; default today + 3.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date_to": {
+          "default": null,
+          "description": "Calendar end YYYY-MM-DD, max date_from + 90; default +57.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "activity_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_find_airport",
+    "title": "Find airport or city",
+    "description": "Find the IATA codes the flight tools need, for domestic and international places.\n\nUse a city code (THR, IST) in the flight tools: it covers all its airports. No query lists popular cities.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "City or airport name, Persian or English; omit for popular places.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domestic_only": {
+          "default": false,
+          "description": "Only Iranian places.",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 8,
+          "description": "Max places.",
+          "maximum": 25,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_search_flights",
+    "title": "Search flights",
+    "description": "Search flights for a date: times, airline, seats left, price and fare_source_code per flight.\n\nprice_toman is per adult, total_toman the whole party. Round trip: `flights` are outbound options,\n`return_flights` the returns for the cheapest outbound (`return_for` = its key). Filters apply to the outbound\nleg. Rate limited: page with search_id, never search again. Next: ft_flight_details(fare_source_code).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "IATA city code from ft_find_airport, e.g. 'THR', 'MHD', 'IST'.",
+          "pattern": "^[A-Za-z]{3}$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "IATA city code from ft_find_airport, e.g. 'THR', 'MHD', 'IST'.",
+          "pattern": "^[A-Za-z]{3}$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "return_date": {
+          "default": null,
+          "description": "Return date YYYY-MM-DD for a round trip; omit for one-way.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adults (12+).",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children (2-11).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants (under 2).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cabin": {
+          "default": "economy",
+          "description": "Cabin class.",
+          "enum": [
+            "economy",
+            "business"
+          ],
+          "type": "string"
+        },
+        "sort": {
+          "default": "cheapest",
+          "description": "Order.",
+          "enum": [
+            "cheapest",
+            "fastest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "airlines": {
+          "default": null,
+          "description": "Only these airline codes, e.g. ['W5'].",
+          "items": {
+            "pattern": "^[A-Za-z0-9]{2,3}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "direct_only": {
+          "default": false,
+          "description": "No stops.",
+          "type": "boolean"
+        },
+        "ticket_type": {
+          "default": null,
+          "description": "Only charter or only system tickets.",
+          "enum": [
+            "charter",
+            "system",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depart_after": {
+          "default": null,
+          "description": "Local HH:MM.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depart_before": {
+          "default": null,
+          "description": "Local HH:MM.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_price_toman": {
+          "default": null,
+          "description": "Highest fare in Toman (whole party).",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 10,
+          "description": "Flights per page.",
+          "maximum": 25,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "default": 1,
+          "description": "1-based; above 1 needs search_id.",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "search_id": {
+          "default": null,
+          "description": "search_id from an earlier result (about 15 min): pages and re-sorts without a new search.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "outbound_key": {
+          "default": null,
+          "description": "Round trip: `key` of an outbound flight, lists its returns (needs search_id).",
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_flight_calendar",
+    "title": "Flight price calendar",
+    "description": "Cheapest one-adult fare per departure day around a date, in one cheap call (no search needed).\n\nPick the cheapest day, then ft_search_flights. Cached minimums that can differ a little from a live search;\ndays without a fare are left out.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "IATA city code from ft_find_airport, e.g. 'THR', 'MHD', 'IST'.",
+          "pattern": "^[A-Za-z]{3}$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "IATA city code from ft_find_airport, e.g. 'THR', 'MHD', 'IST'.",
+          "pattern": "^[A-Za-z]{3}$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Centre of the window, YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "window": {
+          "default": "month",
+          "description": "week = date +-3 days, month = +-15 days.",
+          "enum": [
+            "week",
+            "month"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_flight_details",
+    "title": "Flight fare details",
+    "description": "Refund and change rules, confirmed baggage per segment and (international) entry notes of one fare.\n\nThe fare_source_code lives about 15 minutes; then search again. Charter penalties are text, system fares\ntiers (`penalties`, % of fare).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fare_source_code": {
+          "description": "From ft_search_flights.",
+          "maxLength": 300,
+          "minLength": 10,
+          "type": "string"
+        },
+        "search_id": {
+          "default": null,
+          "description": "search_id of that search; adds entry and transit notes (international).",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "full_text": {
+          "default": false,
+          "description": "Skip text clips and item caps; return full texts.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fare_source_code"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_find_hotel_place",
+    "title": "Find hotel or stay place",
+    "description": "Find the place ids the hotel and stay tools need. Which id goes where:\n\n`hotels` rows: kind 'city' (Iran) -> `city_id` for ft_search_hotels; 'region' (abroad, international=true) ->\n`region_code` + `country_code`; 'hotel' -> `hotel_id` for ft_hotel and ft_hotel_reviews. `stay_regions` rows\n(Iran, villas) -> `region_code` for ft_search_stays; NOT the hotel city ids. No query lists popular places.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "City, region or hotel name, Persian or English.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "international": {
+          "default": false,
+          "description": "Places outside Iran (hotels only).",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 8,
+          "description": "Max rows per list.",
+          "maximum": 15,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_search_hotels",
+    "title": "Search hotels",
+    "description": "Priced hotels of a city (Iran) or region (abroad) for dates, one row per hotel with its cheapest room offer.\n\nGive city_id for Iran, or region_code + country_code with international=true. price_toman is the whole stay\nfor one room. Next: ft_hotel(hotel_id) or ft_hotel_reviews; is_stay=true rows are villas: ft_stay(property_id).\nCaptcha-limited hard per IP: search once, then filter and page; never loop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "check_in": {
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "check_out": {
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "city_id": {
+          "default": null,
+          "description": "Iranian city id from ft_find_hotel_place.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "region_code": {
+          "default": null,
+          "description": "Foreign region code from ft_find_hotel_place.",
+          "pattern": "^\\d{1,10}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adults": {
+          "default": 2,
+          "description": "Adults in the (single) room.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children_ages": {
+          "default": null,
+          "description": "Ages (0-11), one per child, e.g. [5, 8].",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "international": {
+          "default": false,
+          "description": "true for a hotel outside Iran.",
+          "type": "boolean"
+        },
+        "country_code": {
+          "default": null,
+          "description": "ISO code of the destination country (international), e.g. 'TR'.",
+          "pattern": "^[A-Za-z]{2}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sort": {
+          "default": "price",
+          "description": "Cheapest first or best score first.",
+          "enum": [
+            "price",
+            "score"
+          ],
+          "type": "string"
+        },
+        "stars": {
+          "default": null,
+          "description": "Only these star ratings, e.g. [4, 5].",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 5,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "refundable_only": {
+          "default": false,
+          "description": "Only offers with free cancellation.",
+          "type": "boolean"
+        },
+        "max_price_toman": {
+          "default": null,
+          "description": "Max price of the WHOLE stay, Toman.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 10,
+          "description": "Hotels per page.",
+          "maximum": 25,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number, 1-based.",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "check_in",
+        "check_out"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_hotel",
+    "title": "Hotel rooms and prices",
+    "description": "One hotel for dates: every room and meal-plan offer with whole-stay price, rooms left and cancellation terms,\nthe room details (size, beds, features) and the hotel basics (address, stars, score, facilities, check-in time).\n\nprice_toman is the whole stay for one room. Offers are cheapest first, sold-out (rooms_left 0) last.\nUse after ft_search_hotels. Rate limited like it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hotel_id": {
+          "description": "Hotel id from ft_search_hotels or ft_find_hotel_place.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "check_in": {
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "check_out": {
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "adults": {
+          "default": 2,
+          "description": "Adults in the (single) room.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children_ages": {
+          "default": null,
+          "description": "Ages (0-11), one per child, e.g. [5, 8].",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "international": {
+          "default": false,
+          "description": "true for a hotel outside Iran.",
+          "type": "boolean"
+        },
+        "country_code": {
+          "default": null,
+          "description": "ISO code of the destination country (international), e.g. 'TR'.",
+          "pattern": "^[A-Za-z]{2}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "hotel_id",
+        "check_in",
+        "check_out"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_hotel_reviews",
+    "title": "Hotel reviews",
+    "description": "Guest reviews of a hotel: score (1-10), text, pros, cons, trip type and nights. Mostly Persian text.\n\ntotal_reviews tells how many pages exist.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hotel_id": {
+          "description": "Hotel id.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "international": {
+          "default": false,
+          "description": "true for a hotel outside Iran.",
+          "type": "boolean"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number, 1-based.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "order": {
+          "default": "newest",
+          "description": "Review order.",
+          "enum": [
+            "newest",
+            "oldest"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "default": 5,
+          "description": "Reviews per page.",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Skip text clips and item caps; return full texts.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hotel_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_search_stays",
+    "title": "Search villas and stays",
+    "description": "Villas, apartments and other private stays in Iran for dates, cheapest first.\n\nGive both dates (advised: only properties free then are listed and total_toman is filled) or none (base\nprices). property_id feeds ft_stay.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "check_in": {
+          "default": null,
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check_out": {
+          "default": null,
+          "description": "Gregorian YYYY-MM-DD.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region_code": {
+          "default": null,
+          "description": "Region code from ft_find_hotel_place `stay_regions`; omit for all Iran.",
+          "pattern": "^\\d{1,6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guests": {
+          "default": 2,
+          "description": "Number of guests.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "default": null,
+          "description": "Property type; omit for all.",
+          "enum": [
+            "villa",
+            "apartment",
+            "ecotourism",
+            "cottage",
+            "suite",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sort": {
+          "default": "cheapest",
+          "description": "Cheapest = lowest nightly price first.",
+          "enum": [
+            "cheapest",
+            "discount"
+          ],
+          "type": "string"
+        },
+        "max_price_toman": {
+          "default": null,
+          "description": "Max price PER NIGHT, Toman.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 10,
+          "description": "Properties per page.",
+          "maximum": 25,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page number, 1-based.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_stay",
+    "title": "Stay details and calendar",
+    "description": "One villa / apartment: details (capacity, rooms, facilities, rules, host), the per-night price calendar with\nblocked days, and the review summary with the latest reviews.\n\nCalendar prices are Toman per night (the base price in the details is only a reference); available=false\nmeans blocked or reserved.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "property_id": {
+          "description": "Property id from ft_search_stays.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "from_date": {
+          "default": null,
+          "description": "First day YYYY-MM-DD; default today.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to_date": {
+          "default": null,
+          "description": "Last day; default from_date + 14, max 45.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guests": {
+          "default": 2,
+          "description": "Number of guests (changes the price).",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Skip text clips and item caps; return full texts.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "property_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_find_station",
+    "title": "Find train station",
+    "description": "Train station codes (`station_code`) for a city name, or the 8 most popular stations when query is empty.\n\nUse before ft_search_trains and ft_train_calendar (Tehran 1, Mashhad 191).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "City or station name, Persian or latin.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 10,
+          "description": "Max stations.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_search_trains",
+    "title": "Search trains",
+    "description": "Trains between two stations on a date: one row per train class (wagon) with price per adult and seats left.\n\nSales cover about 16 days (no_result means outside). Pass a row's `fare_source_code` and `wagon_id` to\nft_train_stops. Other days: ft_train_calendar. Rate limited: never loop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Station code from ft_find_station, e.g. 1 (Tehran).",
+          "maximum": 9999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Station code from ft_find_station, e.g. 1 (Tehran).",
+          "maximum": 9999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "date": {
+          "description": "Travel date YYYY-MM-DD; sales open ~16 days ahead.",
+          "format": "date",
+          "type": "string"
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adult passengers.",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children (2-12).",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants (under 2).",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sort": {
+          "default": "earliest",
+          "description": "Order.",
+          "enum": [
+            "cheapest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "available_only": {
+          "default": true,
+          "description": "Hide classes with no free seats for this party.",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 15,
+          "description": "Max train classes.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_train_calendar",
+    "title": "Train price calendar",
+    "description": "Cheapest train price per day for the next ~16 days, with sold-out days flagged.\n\nPick a day, then ft_search_trains. An uncached route lists only the next 3 days.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Station code from ft_find_station, e.g. 1 (Tehran).",
+          "maximum": 9999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Station code from ft_find_station, e.g. 1 (Tehran).",
+          "maximum": 9999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "ft_train_stops",
+    "title": "Train stops",
+    "description": "Stops of one train with arrival and departure times, plus (with wagon_id) the class amenities and extra meals.\n\nIds expire with their search.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fare_source_code": {
+          "description": "From a fresh ft_search_trains row.",
+          "pattern": "^[0-9A-Fa-f]{16,400}$",
+          "type": "string"
+        },
+        "wagon_id": {
+          "default": null,
+          "description": "From the same row; adds amenities and meals.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "fare_source_code"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  }
+]

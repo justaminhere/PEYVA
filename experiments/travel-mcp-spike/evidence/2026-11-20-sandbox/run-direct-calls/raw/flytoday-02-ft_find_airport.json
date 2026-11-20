@@ -1,0 +1,14 @@
+{
+  "provider": "flytoday",
+  "tool": "ft_find_airport",
+  "params": {
+    "query": "کیش",
+    "domestic_only": true,
+    "limit": 10
+  },
+  "checkedAt": "2026-11-20T08:22:51.527Z",
+  "outcome": "tool_error",
+  "latencyMs": 3158,
+  "error": "Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+  "serverStderrTail": "Tool 'ft_find_airport' failed: 'Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\nTool 'ft_find_airport' failed: 'Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\n"
+}

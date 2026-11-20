@@ -1,0 +1,164 @@
+{
+  "provider": "mrbilit",
+  "tool": "mb_search_flights",
+  "args": {
+    "origin": "THR",
+    "destination": "KIH",
+    "date": "2026-12-10",
+    "adults": 1,
+    "sort": "cheapest",
+    "limit": 15
+  },
+  "checkedAt": "2026-11-20T12:57:42.581Z",
+  "outcome": "ok",
+  "latencyMs": 967,
+  "response": {
+    "from": "تهران (THR)",
+    "to": "کیش (KIH)",
+    "matching": 5,
+    "not_on_sale": 3,
+    "airlines": [
+      {
+        "code": "ZV",
+        "name": "زاگرس"
+      },
+      {
+        "code": "Y9",
+        "name": "کیش ایر"
+      },
+      {
+        "code": "MEH",
+        "name": "مهر"
+      },
+      {
+        "code": "TKN",
+        "name": "فلای کیش"
+      },
+      {
+        "code": "NV",
+        "name": "کارون"
+      }
+    ],
+    "flights": [
+      {
+        "flight_id": "21956337",
+        "price_toman": 10594200,
+        "total_toman": 10594200,
+        "seats_left": 9,
+        "cabin": "Economy",
+        "charter": false,
+        "baggage": "20 KG",
+        "segments": [
+          {
+            "from": "THR",
+            "to": "KIH",
+            "departure": "2026-12-10T06:00:00+03:30",
+            "arrival": "2026-12-10T07:45:00+03:30",
+            "duration": "01:45:00",
+            "stops": 0,
+            "flights": [
+              "ZV 4030"
+            ],
+            "airline": "زاگرس",
+            "aircraft": "Airbus A320"
+          }
+        ]
+      },
+      {
+        "flight_id": "21957476",
+        "price_toman": 10651000,
+        "total_toman": 10651000,
+        "seats_left": 8,
+        "cabin": "Economy",
+        "charter": false,
+        "baggage": "20 KG",
+        "segments": [
+          {
+            "from": "THR",
+            "to": "KIH",
+            "departure": "2026-12-10T06:30:00+03:30",
+            "arrival": "2026-12-10T08:15:00+03:30",
+            "duration": "01:45:00",
+            "stops": 0,
+            "flights": [
+              "Y9 7055"
+            ],
+            "airline": "کیش ایر",
+            "aircraft": "Fokker 100"
+          }
+        ]
+      },
+      {
+        "flight_id": "21955923",
+        "price_toman": 12000000,
+        "total_toman": 12000000,
+        "seats_left": 5,
+        "cabin": "Economy",
+        "charter": true,
+        "baggage": "20 KG",
+        "segments": [
+          {
+            "from": "THR",
+            "to": "KIH",
+            "departure": "2026-12-10T11:30:00+03:30",
+            "arrival": "2026-12-10T12:30:00+03:30",
+            "duration": "01:00:00",
+            "stops": 0,
+            "flights": [
+              "MEH 4152"
+            ],
+            "airline": "مهر"
+          }
+        ]
+      },
+      {
+        "flight_id": "21948329",
+        "price_toman": 12807000,
+        "total_toman": 12807000,
+        "seats_left": 6,
+        "cabin": "Economy",
+        "charter": true,
+        "baggage": "20 KG",
+        "segments": [
+          {
+            "from": "THR",
+            "to": "KIH",
+            "departure": "2026-12-10T13:25:00+03:30",
+            "arrival": "2026-12-10T14:55:00+03:30",
+            "duration": "01:30:00",
+            "stops": 0,
+            "flights": [
+              "TKN 3100"
+            ],
+            "airline": "فلای کیش",
+            "aircraft": "Boeing 737"
+          }
+        ]
+      },
+      {
+        "flight_id": "21957486",
+        "price_toman": 14356000,
+        "total_toman": 14356000,
+        "seats_left": 9,
+        "cabin": "Economy",
+        "charter": false,
+        "baggage": "20 KG",
+        "segments": [
+          {
+            "from": "THR",
+            "to": "KIH",
+            "departure": "2026-12-10T17:30:00+03:30",
+            "arrival": "2026-12-10T19:15:00+03:30",
+            "duration": "01:45:00",
+            "stops": 0,
+            "flights": [
+              "Y9 7081"
+            ],
+            "airline": "کیش ایر",
+            "aircraft": "Airbus A321"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{"from":"SYNTHETIC (THR)","to":"SYNTHETIC (KIH)","matching":2,"not_on_sale":0,"airlines":[],
+ "flights":[
+  {"flight_id":"SYN-1","price_toman":1111110,"total_toman":1111110,"seats_left":4,"cabin":"Economy","charter":false,"baggage":"20 KG",
+   "segments":[{"from":"THR","to":"KIH","departure":"2026-12-10T08:00:00+03:30","arrival":"2026-12-10T09:45:00+03:30","duration":"01:45","stops":0,"flights":["XX 100"],"airline":"SYNTHETIC AIR"}]},
+  {"flight_id":"SYN-2","price_toman":999990,"total_toman":999990,"seats_left":null,"cabin":"Economy","charter":true,"baggage":null,
+   "segments":[{"from":"THR","to":"KIH","departure":"2026-12-10T14:00:00+03:30","arrival":"2026-12-10T15:50:00+03:30","duration":"01:50","stops":0,"flights":["YY 200"],"airline":"SYNTHETIC AIR 2"}]}
+ ]}

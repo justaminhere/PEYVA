@@ -1,0 +1,84 @@
+{
+  "provider": "mrbilit",
+  "tool": "mb_find_place",
+  "params": {
+    "query": "کیش",
+    "mode": "flight",
+    "limit": 10
+  },
+  "checkedAt": "2026-11-20T08:52:24.125Z",
+  "outcome": "ok",
+  "latencyMs": 179,
+  "response": {
+    "airports": [
+      {
+        "code": "KIH",
+        "city": "کیش",
+        "airport": "فرودگاه کیش"
+      }
+    ],
+    "cities": [
+      {
+        "code": "KIHALL",
+        "city": "Kish Island",
+        "city_fa": "کیش",
+        "country": "Iran",
+        "airports": [
+          {
+            "code": "KIH",
+            "name": "Kish Island"
+          }
+        ]
+      },
+      {
+        "code": "KIVALL",
+        "city": "Chisinau",
+        "city_fa": "کیشیناو",
+        "country": "Moldova, Republic Of",
+        "airports": [
+          {
+            "code": "KIV",
+            "name": "Chisinau"
+          }
+        ]
+      },
+      {
+        "code": "UESALL",
+        "city": "Waukesha",
+        "city_fa": "واکیشا",
+        "country": "United States",
+        "airports": [
+          {
+            "code": "UES",
+            "name": "Waukesha"
+          }
+        ]
+      },
+      {
+        "code": "SHMALL",
+        "city": "Nanki Shirahama",
+        "city_fa": "شیراهاما",
+        "country": "Japan",
+        "airports": [
+          {
+            "code": "SHM",
+            "name": "Nanki Shirahama"
+          }
+        ]
+      },
+      {
+        "code": "ESKALL",
+        "city": "Eskisehir Airport",
+        "city_fa": "اسکی شهر",
+        "country": "Turkey",
+        "airports": [
+          {
+            "code": "ESK",
+            "name": "Eskisehir Airport"
+          }
+        ]
+      }
+    ]
+  },
+  "serverStderrTail": ""
+}

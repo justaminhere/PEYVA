@@ -1,0 +1,570 @@
+{
+  "cycles": 3,
+  "gapS": 60,
+  "queries": {
+    "flight": {
+      "origin": "THR",
+      "destination": "KIH",
+      "date": "2026-12-10",
+      "adults": 1
+    },
+    "hotel3": {
+      "city": "کیش",
+      "checkIn": "2026-12-10",
+      "checkOut": "2026-12-13",
+      "adults": 1
+    },
+    "hotel1": {
+      "city": "کیش",
+      "checkIn": "2026-12-10",
+      "checkOut": "2026-12-11",
+      "adults": 1
+    }
+  },
+  "startedAt": "2026-11-20T12:57:39.728Z",
+  "finished": true,
+  "steps": [
+    {
+      "provider": "mrbilit",
+      "cycle": 1,
+      "health": {
+        "provider": "mrbilit",
+        "ok": true,
+        "checkedAt": "2026-11-20T12:57:39.730Z",
+        "checks": [
+          {
+            "name": "tls flight.atighgasht.com",
+            "ok": true,
+            "ms": 509,
+            "detail": null
+          },
+          {
+            "name": "tls hotel.mrbilit.ir",
+            "ok": true,
+            "ms": 340,
+            "detail": null
+          },
+          {
+            "name": "mcp tools",
+            "ok": true,
+            "ms": 2285,
+            "detail": null
+          }
+        ]
+      },
+      "flight": {
+        "leg": "flight",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:57:42.581Z",
+        "latencyMs": 967,
+        "count": 5,
+        "totalAvailable": 5,
+        "truncated": false,
+        "notes": [
+          "3 listed without a price (not on sale)"
+        ],
+        "error": null,
+        "nulls": {
+          "providerFlightId": 0,
+          "departureTime": 0,
+          "arrivalTime": 0,
+          "airline": 0,
+          "stops": 0,
+          "price": 0,
+          "totalPrice": 0,
+          "seatsLeft": 0
+        },
+        "issues": [],
+        "currencies": [
+          "TOMAN"
+        ],
+        "priceBases": [
+          "per_adult"
+        ],
+        "cheapest": 10594200,
+        "priceChangesVsPrevious": null
+      },
+      "hotel3": {
+        "leg": "hotel3",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:57:44.458Z",
+        "latencyMs": 3728,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "3/3"
+        ],
+        "priceBases": [
+          "whole_stay_one_room"
+        ],
+        "cheapest": 3726000
+      },
+      "hotel1": {
+        "leg": "hotel1",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:57:48.188Z",
+        "latencyMs": 2992,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "1/1"
+        ]
+      },
+      "stayRatio": {
+        "pairs": 20,
+        "min": 2.667152221412964,
+        "median": 3,
+        "max": 3,
+        "suspicious": 0
+      }
+    },
+    {
+      "provider": "mrbilit",
+      "cycle": 2,
+      "health": {
+        "provider": "mrbilit",
+        "ok": true,
+        "checkedAt": "2026-11-20T12:58:51.207Z",
+        "checks": [
+          {
+            "name": "tls flight.atighgasht.com",
+            "ok": true,
+            "ms": 109,
+            "detail": null
+          },
+          {
+            "name": "tls hotel.mrbilit.ir",
+            "ok": true,
+            "ms": 113,
+            "detail": null
+          },
+          {
+            "name": "mcp tools",
+            "ok": true,
+            "ms": 8,
+            "detail": null
+          }
+        ]
+      },
+      "flight": {
+        "leg": "flight",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:58:51.328Z",
+        "latencyMs": 704,
+        "count": 5,
+        "totalAvailable": 5,
+        "truncated": false,
+        "notes": [
+          "3 listed without a price (not on sale)"
+        ],
+        "error": null,
+        "nulls": {
+          "providerFlightId": 0,
+          "departureTime": 0,
+          "arrivalTime": 0,
+          "airline": 0,
+          "stops": 0,
+          "price": 0,
+          "totalPrice": 0,
+          "seatsLeft": 0
+        },
+        "issues": [],
+        "currencies": [
+          "TOMAN"
+        ],
+        "priceBases": [
+          "per_adult"
+        ],
+        "cheapest": 10594200,
+        "priceChangesVsPrevious": 0
+      },
+      "hotel3": {
+        "leg": "hotel3",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:58:52.035Z",
+        "latencyMs": 814,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "3/3"
+        ],
+        "priceBases": [
+          "whole_stay_one_room"
+        ],
+        "cheapest": 3726000
+      },
+      "hotel1": {
+        "leg": "hotel1",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:58:52.850Z",
+        "latencyMs": 469,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "1/1"
+        ]
+      },
+      "stayRatio": {
+        "pairs": 20,
+        "min": 2.667152221412964,
+        "median": 3,
+        "max": 3,
+        "suspicious": 0
+      }
+    },
+    {
+      "provider": "mrbilit",
+      "cycle": 3,
+      "health": {
+        "provider": "mrbilit",
+        "ok": true,
+        "checkedAt": "2026-11-20T12:59:53.333Z",
+        "checks": [
+          {
+            "name": "tls flight.atighgasht.com",
+            "ok": true,
+            "ms": 345,
+            "detail": null
+          },
+          {
+            "name": "tls hotel.mrbilit.ir",
+            "ok": true,
+            "ms": 267,
+            "detail": null
+          },
+          {
+            "name": "mcp tools",
+            "ok": true,
+            "ms": 7,
+            "detail": null
+          }
+        ]
+      },
+      "flight": {
+        "leg": "flight",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:59:53.686Z",
+        "latencyMs": 841,
+        "count": 5,
+        "totalAvailable": 5,
+        "truncated": false,
+        "notes": [
+          "3 listed without a price (not on sale)"
+        ],
+        "error": null,
+        "nulls": {
+          "providerFlightId": 0,
+          "departureTime": 0,
+          "arrivalTime": 0,
+          "airline": 0,
+          "stops": 0,
+          "price": 0,
+          "totalPrice": 0,
+          "seatsLeft": 0
+        },
+        "issues": [],
+        "currencies": [
+          "TOMAN"
+        ],
+        "priceBases": [
+          "per_adult"
+        ],
+        "cheapest": 10594200,
+        "priceChangesVsPrevious": 0
+      },
+      "hotel3": {
+        "leg": "hotel3",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:59:54.529Z",
+        "latencyMs": 424,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "3/3"
+        ],
+        "priceBases": [
+          "whole_stay_one_room"
+        ],
+        "cheapest": 3726000
+      },
+      "hotel1": {
+        "leg": "hotel1",
+        "provider": "mrbilit",
+        "status": "ok",
+        "checkedAt": "2026-11-20T12:59:54.954Z",
+        "latencyMs": 342,
+        "count": 20,
+        "totalAvailable": 28,
+        "truncated": true,
+        "notes": [],
+        "error": null,
+        "nulls": {
+          "providerHotelId": 0,
+          "name": 0,
+          "totalPrice": 0,
+          "providerPerNight": 0,
+          "stars": 0,
+          "rating": 3,
+          "refundable": 0,
+          "roomsLeft": 20,
+          "roomSleeps": 0
+        },
+        "issues": [],
+        "nights": [
+          "1/1"
+        ]
+      },
+      "stayRatio": {
+        "pairs": 20,
+        "min": 2.667152221412964,
+        "median": 3,
+        "max": 3,
+        "suspicious": 0
+      }
+    }
+  ],
+  "calls": [
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_flights",
+      "args": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "sort": "cheapest",
+        "limit": 15
+      },
+      "checkedAt": "2026-11-20T12:57:42.581Z",
+      "outcome": "ok",
+      "latencyMs": 967,
+      "rawFile": "raw/mrbilit-01-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_find_place",
+      "args": {
+        "query": "کیش",
+        "mode": "hotel",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T12:57:43.551Z",
+      "outcome": "ok",
+      "latencyMs": 905,
+      "rawFile": "raw/mrbilit-02-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-13",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:57:44.458Z",
+      "outcome": "ok",
+      "latencyMs": 3728,
+      "rawFile": "raw/mrbilit-03-mb_search_hotels.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-11",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:57:48.188Z",
+      "outcome": "ok",
+      "latencyMs": 2992,
+      "rawFile": "raw/mrbilit-04-mb_search_hotels.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_flights",
+      "args": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "sort": "cheapest",
+        "limit": 15
+      },
+      "checkedAt": "2026-11-20T12:58:51.328Z",
+      "outcome": "ok",
+      "latencyMs": 704,
+      "rawFile": "raw/mrbilit-05-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-13",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:58:52.035Z",
+      "outcome": "ok",
+      "latencyMs": 814,
+      "rawFile": "raw/mrbilit-06-mb_search_hotels.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-11",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:58:52.850Z",
+      "outcome": "ok",
+      "latencyMs": 469,
+      "rawFile": "raw/mrbilit-07-mb_search_hotels.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_flights",
+      "args": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "sort": "cheapest",
+        "limit": 15
+      },
+      "checkedAt": "2026-11-20T12:59:53.686Z",
+      "outcome": "ok",
+      "latencyMs": 841,
+      "rawFile": "raw/mrbilit-08-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-13",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:59:54.529Z",
+      "outcome": "ok",
+      "latencyMs": 424,
+      "rawFile": "raw/mrbilit-09-mb_search_hotels.json"
+    },
+    {
+      "provider": "mrbilit",
+      "tool": "mb_search_hotels",
+      "args": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-11",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T12:59:54.954Z",
+      "outcome": "ok",
+      "latencyMs": 342,
+      "rawFile": "raw/mrbilit-10-mb_search_hotels.json"
+    }
+  ],
+  "summary": {
+    "cycles": 3,
+    "healthFailures": 0,
+    "searches": 9,
+    "searchErrors": 0,
+    "searchEmpty": 0
+  },
+  "finishedAt": "2026-11-20T12:59:55.602Z"
+}

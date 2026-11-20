@@ -1,0 +1,20 @@
+
+=== MrBilit (mrbilit-mcp 0.5.2) ===
+  preflight flight.atighgasht.com      dns=fail tls=skipped :: getaddrinfo EAI_AGAIN
+  preflight hotel.mrbilit.ir           dns=fail tls=skipped :: getaddrinfo EAI_AGAIN
+  backend unreachable from this network: provider calls NOT executed (use --force to call anyway)
+
+=== FlyToday (flytoday-mcp 0.4.2) ===
+  preflight www.flytoday.ir            dns=fail tls=skipped :: getaddrinfo EAI_AGAIN
+  preflight api.flytoday.ir            dns=fail tls=skipped :: getaddrinfo EAI_AGAIN
+  preflight placesearch.flytoday.ir    dns=fail tls=skipped :: getaddrinfo EAI_AGAIN
+  backend unreachable from this network: provider calls NOT executed (use --force to call anyway)
+
+=== Summary (2026-11-20T08-25-36-984Z) ===
+  NOT_TESTED mrbilit   preflight        -                    results=- cause=network_or_geo_block
+  NOT_TESTED flytoday  preflight        -                    results=- cause=network_or_geo_block
+  package mrbilit: incomplete: at least one leg has no priced result
+  package flytoday: incomplete: at least one leg has no priced result
+
+Artifacts: /sessions/rcw-01w61dtcpukgvuncptmndysz/mnt/PEYVA/experiments/travel-mcp-spike/output/run-2026-11-20T08-25-36-984Z/{report.json,normalized.json,raw/}
+RESULT: NOT MET — no real flight+hotel data obtained (see failures above).

@@ -1,0 +1,5 @@
+{"nights":3,"available_hotels":2,"matching":2,"hotels":[
+ {"id":1,"name":"SYNTHETIC HOTEL A","hotel":"kish/synthetic-a","type":"هتل","stars":4,"rating":4.2,"reviews":10,"address":null,"photo":null,
+  "price_toman":9000000,"per_night_toman":3000000,"meals":null,"cheapest_room_sleeps":1,"refundable":true},
+ {"id":2,"name":"SYNTHETIC HOTEL B","hotel":"kish/synthetic-b","type":"هتل","stars":5,"rating":null,"reviews":0,"address":null,"photo":null,
+  "price_toman":7000000,"per_night_toman":2333333,"meals":null,"cheapest_room_sleeps":2,"refundable":false}]}

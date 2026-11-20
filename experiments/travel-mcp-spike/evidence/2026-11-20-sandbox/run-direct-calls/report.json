@@ -1,0 +1,286 @@
+{
+  "runId": "2026-11-20T08-22-29-129Z",
+  "scenario": {
+    "id": "thr-kih-2026-12",
+    "originQuery": "تهران",
+    "destinationQuery": "کیش",
+    "destinationNeedles": [
+      "کیش",
+      "kish"
+    ],
+    "outboundDate": "2026-12-10",
+    "returnDate": "2026-12-13",
+    "checkIn": "2026-12-10",
+    "checkOut": "2026-12-13",
+    "adults": 1,
+    "rooms": 1,
+    "iataFallback": {
+      "origin": "THR",
+      "destination": "KIH"
+    }
+  },
+  "generatedAt": "2026-11-20T08:23:03.056Z",
+  "calls": [
+    {
+      "provider": "mrbilit",
+      "step": "resolve-origin",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "تهران",
+        "mode": "flight",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:31.026Z",
+      "latencyMs": 3097,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool mb_find_place: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-01-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "resolve-dest",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "کیش",
+        "mode": "flight",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:34.129Z",
+      "latencyMs": 3109,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool mb_find_place: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-02-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "resolve-hotel",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "کیش",
+        "mode": "hotel",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:37.241Z",
+      "latencyMs": 2737,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool mb_find_place: Could not reach hotel.mrbilit.ir (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-03-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "flight-outbound",
+      "tool": "mb_search_flights",
+      "params": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "iata-standard"
+      },
+      "checkedAt": "2026-11-20T08:22:39.982Z",
+      "latencyMs": 3171,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool mb_search_flights: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-04-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "flight-return",
+      "tool": "mb_search_flights",
+      "params": {
+        "origin": "KIH",
+        "destination": "THR",
+        "date": "2026-12-13",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "iata-standard"
+      },
+      "checkedAt": "2026-11-20T08:22:43.157Z",
+      "latencyMs": 3500,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool mb_search_flights: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-05-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "hotels",
+      "tool": "mb_search_hotels",
+      "params": {},
+      "checkedAt": "2026-11-20T08:22:46.659Z",
+      "latencyMs": null,
+      "outcome": "skipped",
+      "status": "NOT_TESTED",
+      "resultCount": null,
+      "failureCause": null,
+      "error": "hotel place id/slug could not be resolved by the provider lookup",
+      "providerNote": null,
+      "rawFile": null
+    },
+    {
+      "provider": "flytoday",
+      "step": "resolve-origin",
+      "tool": "ft_find_airport",
+      "params": {
+        "query": "تهران",
+        "domestic_only": true,
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:48.739Z",
+      "latencyMs": 2784,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+      "providerNote": null,
+      "rawFile": "raw/flytoday-01-ft_find_airport.json"
+    },
+    {
+      "provider": "flytoday",
+      "step": "resolve-dest",
+      "tool": "ft_find_airport",
+      "params": {
+        "query": "کیش",
+        "domestic_only": true,
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:51.527Z",
+      "latencyMs": 3158,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+      "providerNote": null,
+      "rawFile": "raw/flytoday-02-ft_find_airport.json"
+    },
+    {
+      "provider": "flytoday",
+      "step": "resolve-hotel",
+      "tool": "ft_find_hotel_place",
+      "params": {
+        "query": "کیش",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:22:54.691Z",
+      "latencyMs": 2434,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool ft_find_hotel_place: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+      "providerNote": null,
+      "rawFile": "raw/flytoday-03-ft_find_hotel_place.json"
+    },
+    {
+      "provider": "flytoday",
+      "step": "flight-outbound",
+      "tool": "ft_search_flights",
+      "params": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "iata-standard"
+      },
+      "checkedAt": "2026-11-20T08:22:57.129Z",
+      "latencyMs": 2562,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool ft_search_flights: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+      "providerNote": null,
+      "rawFile": "raw/flytoday-04-ft_search_flights.json"
+    },
+    {
+      "provider": "flytoday",
+      "step": "flight-return",
+      "tool": "ft_search_flights",
+      "params": {
+        "origin": "KIH",
+        "destination": "THR",
+        "date": "2026-12-13",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "iata-standard"
+      },
+      "checkedAt": "2026-11-20T08:22:59.695Z",
+      "latencyMs": 3059,
+      "outcome": "tool_error",
+      "status": "FAILED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "Error executing tool ft_search_flights: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+      "providerNote": null,
+      "rawFile": "raw/flytoday-05-ft_search_flights.json"
+    },
+    {
+      "provider": "flytoday",
+      "step": "hotels",
+      "tool": "ft_search_hotels",
+      "params": {},
+      "checkedAt": "2026-11-20T08:23:02.759Z",
+      "latencyMs": null,
+      "outcome": "skipped",
+      "status": "NOT_TESTED",
+      "resultCount": null,
+      "failureCause": null,
+      "error": "hotel place id/slug could not be resolved by the provider lookup",
+      "providerNote": null,
+      "rawFile": null
+    }
+  ],
+  "packages": [
+    {
+      "provider": "mrbilit",
+      "complete": false,
+      "outbound": null,
+      "return": null,
+      "hotel": null,
+      "totalPrice": null,
+      "currency": "TOMAN",
+      "note": "incomplete: at least one leg has no priced result"
+    },
+    {
+      "provider": "flytoday",
+      "complete": false,
+      "outbound": null,
+      "return": null,
+      "hotel": null,
+      "totalPrice": null,
+      "currency": "TOMAN",
+      "note": "incomplete: at least one leg has no priced result"
+    }
+  ],
+  "counts": {
+    "flights": 0,
+    "hotels": 0
+  }
+}

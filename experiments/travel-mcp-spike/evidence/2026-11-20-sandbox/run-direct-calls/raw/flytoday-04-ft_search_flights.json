@@ -1,0 +1,17 @@
+{
+  "provider": "flytoday",
+  "tool": "ft_search_flights",
+  "params": {
+    "origin": "THR",
+    "destination": "KIH",
+    "date": "2026-12-10",
+    "adults": 1,
+    "limit": 15,
+    "sort": "cheapest"
+  },
+  "checkedAt": "2026-11-20T08:22:57.129Z",
+  "outcome": "tool_error",
+  "latencyMs": 2562,
+  "error": "Error executing tool ft_search_flights: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.",
+  "serverStderrTail": "Tool 'ft_find_airport' failed: 'Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\nTool 'ft_find_airport' failed: 'Error executing tool ft_find_airport: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\nTool 'ft_find_hotel_place' failed: 'Error executing tool ft_find_hotel_place: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\nTool 'ft_search_flights' failed: 'Error executing tool ft_search_flights: Could not reach www.flytoday.ir (ConnectError). Check the internet connection, or set FLYTODAY_MCP_PROXY to an HTTP proxy.'\n"
+}

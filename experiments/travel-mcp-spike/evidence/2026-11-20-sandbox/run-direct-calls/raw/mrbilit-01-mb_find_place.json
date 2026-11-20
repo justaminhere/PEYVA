@@ -1,0 +1,14 @@
+{
+  "provider": "mrbilit",
+  "tool": "mb_find_place",
+  "params": {
+    "query": "تهران",
+    "mode": "flight",
+    "limit": 10
+  },
+  "checkedAt": "2026-11-20T08:22:31.026Z",
+  "outcome": "tool_error",
+  "latencyMs": 3097,
+  "error": "Error executing tool mb_find_place: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.",
+  "serverStderrTail": "Tool 'mb_find_place' failed: \"Error executing tool mb_find_place: Could not reach flight.atighgasht.com (ConnectError). MrBilit's API resets connections from many networks outside Iran: set MRBILIT_MCP_PROXY to an HTTP proxy, or check the internet connection.\"\n"
+}

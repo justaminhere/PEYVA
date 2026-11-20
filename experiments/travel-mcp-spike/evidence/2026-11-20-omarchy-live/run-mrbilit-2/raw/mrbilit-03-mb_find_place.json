@@ -1,0 +1,100 @@
+{
+  "provider": "mrbilit",
+  "tool": "mb_find_place",
+  "params": {
+    "query": "کیش",
+    "mode": "hotel",
+    "limit": 10
+  },
+  "checkedAt": "2026-11-20T12:35:03.993Z",
+  "outcome": "ok",
+  "latencyMs": 897,
+  "response": {
+    "cities": [
+      {
+        "id": 36,
+        "name": "کیش",
+        "slug": "kish",
+        "tags": [
+          "5star",
+          "beach",
+          "cheap",
+          "luxury"
+        ]
+      }
+    ],
+    "hotels": [
+      {
+        "id": 4838,
+        "name": "هلیا",
+        "slug": "heliya",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 29655,
+        "name": "آریا",
+        "slug": "Aria",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 4397,
+        "name": "بین المللی",
+        "slug": "beynolmelali-kish",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 8698,
+        "name": "پالاس",
+        "slug": "palace",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 4376,
+        "name": "پارمیدا",
+        "slug": "parmida",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 5260,
+        "name": "پانوراما",
+        "slug": "panorama",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 30099,
+        "name": "اکسلسیور",
+        "slug": "excelsior",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 29487,
+        "name": "امیرکبیر",
+        "slug": "AMIR-KABIR",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 5267,
+        "name": "آرامیس",
+        "slug": "aramis",
+        "city": "کیش",
+        "city_slug": "kish"
+      },
+      {
+        "id": 5256,
+        "name": "ترنج",
+        "slug": "toranj",
+        "city": "کیش",
+        "city_slug": "kish"
+      }
+    ]
+  },
+  "serverStderrTail": ""
+}

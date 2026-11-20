@@ -1,0 +1,1319 @@
+[
+  {
+    "name": "mb_search_buses",
+    "title": "Search buses",
+    "description": "Intercity buses on a date: company, terminal, times, price per seat, free seats, bus type, stops, refund penalties.\n\nA city id covers all its terminals. price_toman is per seat. Top-level refund_penalties\napply to every bus unless a bus lists its own (until_hours_before: step applies until then,\nnull = up to departure). Next: mb_bus_seats with a bus_id; other days: mb_bus_price_calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Bus city or terminal id from mb_find_place(mode='bus'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Bus city or terminal id from mb_find_place(mode='bus'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "date": {
+          "description": "Departure date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "sort": {
+          "default": "earliest",
+          "description": "Order of the buses.",
+          "enum": [
+            "cheapest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "vip_only": {
+          "default": false,
+          "description": "Only VIP buses.",
+          "type": "boolean"
+        },
+        "companies": {
+          "default": null,
+          "description": "Only these company ids from `companies` of a result, e.g. [4, 16].",
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "depart_after": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '18:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depart_before": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '18:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "include_sold_out": {
+          "default": false,
+          "description": "Also list buses with no free seat.",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 20,
+          "description": "Max buses.",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_bus_price_calendar",
+    "title": "Bus price calendar",
+    "description": "Cheapest bus seat per day for a route; days without buses (or not on sale yet) are left out.\n\nThen mb_search_buses for the chosen day.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Bus city or terminal id from mb_find_place(mode='bus'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Bus city or terminal id from mb_find_place(mode='bus'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "start_date": {
+          "default": null,
+          "description": "First day YYYY-MM-DD; default today.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "days": {
+          "default": 30,
+          "description": "Number of days to cover.",
+          "maximum": 90,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "seats": {
+          "default": 1,
+          "description": "Seats needed.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_bus_seats",
+    "title": "Bus seat map",
+    "description": "Seat map of one bus: free seat numbers, seats sold to women and to men, and a row-by-row layout.\n\nlayout: one line per row from the front; seat = number + mark (none free, w woman, m man,\nx not sold online); '|' aisle, '--' no seat, 'DR' driver. price_toman is null for most\nbuses: use the search price.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bus_id": {
+          "description": "bus_id from a fresh mb_search_buses result.",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bus_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_search_taxis",
+    "title": "Search intercity taxis",
+    "description": "Private door-to-door intercity taxis (whole car, up to 3 passengers) for a date, one offer per pick-up slot.\n\nprice_toman is for the whole car. Many city pairs have no taxis (e.g. Tehran-Mashhad).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "City id from mb_find_place(mode='taxi'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "City id from mb_find_place(mode='taxi'), e.g. 11320000 (Tehran).",
+          "maximum": 99999999,
+          "minimum": 100000,
+          "type": "integer"
+        },
+        "date": {
+          "description": "Departure date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "car_class": {
+          "default": "any",
+          "description": "Car class.",
+          "enum": [
+            "any",
+            "economy",
+            "vip",
+            "formal"
+          ],
+          "type": "string"
+        },
+        "depart_after": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '18:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depart_before": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '18:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 24,
+          "description": "Max offers.",
+          "maximum": 80,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_find_place",
+    "title": "Find place codes",
+    "description": "Turn a city, airport, station or hotel name into the code a search takes.\n\nflight: `airports` (Iranian IATA codes; Tehran is THR; prefer to XXXALL for domestic routes)\nand `cities` (any country; XXXALL = all its airports). train: station ids. bus / taxi: 8-digit\ncity ids (11320000 = Tehran, all terminals). hotel: city and hotel slugs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Place name in Persian or English, or a code, e.g. 'مشهد', 'tehran' or 'IST'.",
+          "maxLength": 60,
+          "minLength": 2,
+          "type": "string"
+        },
+        "mode": {
+          "description": "Which search the code is for.",
+          "enum": [
+            "flight",
+            "train",
+            "bus",
+            "taxi",
+            "hotel"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "description": "Max places per list.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query",
+        "mode"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_companies",
+    "title": "Transport companies",
+    "description": "List airlines (IATA code), rail operators or bus companies (id) with Persian and English names.\n\nUse to name a code seen in results or to find a code for the `airlines` filter. Bus ids\n276/278/280 are the taxi classes VIP/Economy/Formal.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "description": "Airlines, rail operators, or bus companies.",
+          "enum": [
+            "flight",
+            "train",
+            "bus"
+          ],
+          "type": "string"
+        },
+        "query": {
+          "default": null,
+          "description": "Optional name or code filter, e.g. 'ماهان', 'IR' or 'Iran Peyma'.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 30,
+          "description": "Max companies.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_notices",
+    "title": "Site notices",
+    "description": "Notices MrBilit currently shows on its pages (disruptions, rule changes, payment options), for a service or route.\n\nRoute codes build the site path the notices match (/flights/THR-MHD, /trains/tehran-mashhad,\n/hotel/mashhad). site_wide_active counts every active notice. Use before recommending a trip.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "default": "any",
+          "description": "Which pages; any = every active notice.",
+          "enum": [
+            "any",
+            "flight",
+            "train",
+            "bus",
+            "taxi",
+            "hotel"
+          ],
+          "type": "string"
+        },
+        "origin": {
+          "default": null,
+          "description": "Flight: IATA code ('THR'); train, bus, taxi: English city slug ('tehran'); hotel destination: city slug or 'city/hotel' ('mashhad/enghelab').",
+          "pattern": "^[\\w()-]{2,40}(/[\\w()-]{2,60})?$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "destination": {
+          "default": null,
+          "description": "Flight: IATA code ('THR'); train, bus, taxi: English city slug ('tehran'); hotel destination: city slug or 'city/hotel' ('mashhad/enghelab').",
+          "pattern": "^[\\w()-]{2,40}(/[\\w()-]{2,60})?$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_help",
+    "title": "Help center search",
+    "description": "Search MrBilit's official rules, FAQ and help-center guides; returns the best matching passages.\n\nUse for refund, cancellation, ID and baggage rules. Rules of one fare are in\nmb_flight_fare_details / mb_search_trains / mb_search_buses instead.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Question or keywords in Persian, e.g. 'استرداد بلیط قطار' or 'رزرو خودکار'.",
+          "maxLength": 100,
+          "minLength": 2,
+          "type": "string"
+        },
+        "source": {
+          "default": "all",
+          "description": "terms = official rules, faq = general FAQ, support = help-center guides.",
+          "enum": [
+            "all",
+            "terms",
+            "faq",
+            "support"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "default": 5,
+          "description": "Max passages.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Return long texts uncut instead of clipped.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_travel_guide",
+    "title": "Travel guide",
+    "description": "MrBilit's guide for a route or city (summary, FAQ, article) and matching travel-magazine posts.\n\nRoute guide: service + origin + destination (flight IATA codes, train/bus English slugs such\nas 'tehran'; hotel: destination city slug only). Magazine: query. Quoted prices can be out\nof date.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "default": null,
+          "description": "Route guide for this service; needs destination.",
+          "enum": [
+            "flight",
+            "train",
+            "bus",
+            "hotel",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "default": null,
+          "description": "Flight: IATA code ('THR'); train, bus, taxi: English city slug ('tehran'); hotel destination: city slug or 'city/hotel' ('mashhad/enghelab').",
+          "pattern": "^[\\w()-]{2,40}(/[\\w()-]{2,60})?$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "destination": {
+          "default": null,
+          "description": "Flight: IATA code ('THR'); train, bus, taxi: English city slug ('tehran'); hotel destination: city slug or 'city/hotel' ('mashhad/enghelab').",
+          "pattern": "^[\\w()-]{2,40}(/[\\w()-]{2,60})?$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query": {
+          "default": null,
+          "description": "Magazine search, e.g. 'کیش' or 'جاهای دیدنی مشهد'.",
+          "maxLength": 100,
+          "minLength": 2,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 5,
+          "description": "Max magazine posts.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Return long texts uncut instead of clipped.",
+          "type": "boolean"
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_search_flights",
+    "title": "Search flights",
+    "description": "Search flights for a date: every bookable flight with price, seats left, baggage and times.\n\nprice_toman is one adult's fare (taxes included); total_toman the whole party. Domestic round\ntrips come back as two lists (`outbound`, `return`); international ones as packages priced\nfor both ways. Unpriced flights are only counted in not_on_sale. Next: mb_flight_fare_details\nwith the flight_id; to pick the day first, mb_flight_price_calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Gregorian date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "return_date": {
+          "default": null,
+          "description": "Return date YYYY-MM-DD; omit for one-way.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adults (12+).",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children (2-11).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants (under 2).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cabin": {
+          "default": "any",
+          "description": "Cabin class filter.",
+          "enum": [
+            "any",
+            "economy",
+            "economy_plus",
+            "premium_economy",
+            "business",
+            "first"
+          ],
+          "type": "string"
+        },
+        "sort": {
+          "default": "cheapest",
+          "description": "Order of the flights.",
+          "enum": [
+            "cheapest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "airlines": {
+          "default": null,
+          "description": "Only these airline codes, e.g. ['IR', 'W5'].",
+          "items": {
+            "pattern": "^[A-Za-z0-9]{2,3}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "direct_only": {
+          "default": false,
+          "description": "Only flights without a connection.",
+          "type": "boolean"
+        },
+        "depart_after": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '06:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depart_before": {
+          "default": null,
+          "description": "Local time HH:MM, e.g. '06:00'.",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 15,
+          "description": "Max flights per list.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_flight_price_calendar",
+    "title": "Flight price calendar",
+    "description": "Cheapest one-adult fare per day for a route over a date range, in one call.\n\nThen call mb_search_flights for the chosen day. Values are cached minimums and can differ\nfrom a live search; days with no known fare are left out.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "start_date": {
+          "default": null,
+          "description": "First day YYYY-MM-DD; default today.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "days": {
+          "default": 30,
+          "description": "Number of days to cover.",
+          "maximum": 180,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_flight_fare_details",
+    "title": "Flight fare details",
+    "description": "Every fare of one flight with refund penalties, confirmed baggage, fare rules, notes and per-passenger prices.\n\nRe-runs the mb_search_flights search (same route, date, party). refund_penalties: penalty\npercent per window before departure, refund = paid x (100 - penalty_pct) / 100.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "destination": {
+          "description": "IATA airport or city code from mb_find_place(mode='flight'), e.g. 'THR', 'MHD', 'ISTALL' (all Istanbul airports).",
+          "pattern": "^[A-Za-z]{3}([Aa][Ll][Ll])?$",
+          "type": "string"
+        },
+        "date": {
+          "description": "Gregorian date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "flight_id": {
+          "description": "flight_id from mb_search_flights, e.g. '21919377' or '21894997+21924108'.",
+          "maxLength": 400,
+          "minLength": 1,
+          "type": "string"
+        },
+        "return_date": {
+          "default": null,
+          "description": "Return date, only for an international round-trip package.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adults (12+).",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children (2-11).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants (under 2).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Return long texts uncut instead of clipped.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date",
+        "flight_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_search_hotels",
+    "title": "Search hotels",
+    "description": "Hotels and stays with a free room in a city for the dates, with the cheapest room price for the whole stay.\n\nprice_toman is the cheapest room for all nights (one room, after discount);\ncheapest_room_sleeps is how many that room sleeps (often 1). Guest count does not change\nprices: pick a fitting room with mb_hotel_rooms(guests=...). Next: mb_hotel, mb_hotel_rooms,\nmb_hotel_calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "description": "City slug from mb_find_place(mode='hotel'), e.g. 'mashhad' or 'kish'.",
+          "maxLength": 60,
+          "pattern": "^[A-Za-z][\\w-]*$",
+          "type": "string"
+        },
+        "check_in": {
+          "description": "Check-in date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "check_out": {
+          "description": "Check-out date YYYY-MM-DD (1 to 30 nights).",
+          "format": "date",
+          "type": "string"
+        },
+        "sort": {
+          "default": "rating",
+          "description": "Order; rating is the site's default.",
+          "enum": [
+            "rating",
+            "cheapest",
+            "most_expensive"
+          ],
+          "type": "string"
+        },
+        "min_stars": {
+          "default": null,
+          "description": "Only hotels with at least this many stars, e.g. 4.",
+          "maximum": 5,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "hotel_type": {
+          "default": "any",
+          "description": "Kind of stay.",
+          "enum": [
+            "any",
+            "hotel",
+            "hotel_apartment",
+            "traditional",
+            "eco_lodge",
+            "guest_house",
+            "boutique",
+            "other"
+          ],
+          "type": "string"
+        },
+        "max_price_per_night_toman": {
+          "default": null,
+          "description": "Highest price per night for one room in Toman, e.g. 3000000.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "refundable_only": {
+          "default": false,
+          "description": "Only refundable stays.",
+          "type": "boolean"
+        },
+        "amenities": {
+          "default": null,
+          "description": "Persian words, each matching an amenity title, e.g. ['استخر'] (pool), ['پارکینگ'].",
+          "items": {
+            "maxLength": 30,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "breakfast_only": {
+          "default": false,
+          "description": "Only stays whose cheapest room includes breakfast.",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 20,
+          "description": "Max hotels.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "city",
+        "check_in",
+        "check_out"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_hotel",
+    "title": "Hotel details",
+    "description": "One hotel: stars, guest rating (0-5) and latest reviews, location, landmarks, check-in rules, amenities, FAQ.\n\nlandmarks: distance in km (drive minutes). Review text is cut at 400 characters unless\nfull_text. `hotel` is null after a numeric id: get the 'city/hotel' ref from\nmb_find_place(mode='hotel'). Prices: mb_hotel_rooms, mb_hotel_calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hotel": {
+          "description": "'city_slug/hotel_slug' (e.g. 'mashhad/enghelab') or numeric id.",
+          "maxLength": 120,
+          "pattern": "^(\\d{1,9}|[A-Za-z0-9][\\w-]*/[A-Za-z0-9][\\w-]*)$",
+          "type": "string"
+        },
+        "reviews": {
+          "default": 5,
+          "description": "How many of the latest guest reviews to include.",
+          "maximum": 15,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "full_text": {
+          "default": false,
+          "description": "Return long texts uncut instead of clipped.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hotel"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_hotel_rooms",
+    "title": "Hotel rooms and prices",
+    "description": "Every room of a hotel with its exact price for the dates: whole stay, per night, rooms left, meals.\n\nprice_toman is the whole stay for one room after discount (independent of guest count:\nchoose rooms whose sleeps fits). rooms_left 0 = full. Empty rooms = nothing free (try\nmb_hotel_calendar).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hotel": {
+          "description": "Hotel as 'city_slug/hotel_slug' from mb_search_hotels, e.g. 'mashhad/enghelab'.",
+          "maxLength": 120,
+          "pattern": "^[A-Za-z0-9][\\w-]*/[A-Za-z0-9][\\w-]*$",
+          "type": "string"
+        },
+        "check_in": {
+          "description": "Check-in date YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "check_out": {
+          "description": "Check-out date YYYY-MM-DD (1 to 30 nights).",
+          "format": "date",
+          "type": "string"
+        },
+        "guests": {
+          "default": null,
+          "description": "Only rooms that sleep at least this many (with extra beds), e.g. 3.",
+          "maximum": 12,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "hotel",
+        "check_in",
+        "check_out"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_hotel_calendar",
+    "title": "Hotel price calendar",
+    "description": "Cheapest one-night room price per night from today, up to about 48 days (often fewer).\n\nThen mb_hotel_rooms for exact prices. Nights missing inside the range have no free room;\nnights after the last one are not loaded yet.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hotel": {
+          "description": "Hotel as 'city_slug/hotel_slug' from mb_search_hotels, e.g. 'mashhad/enghelab'.",
+          "maxLength": 120,
+          "pattern": "^[A-Za-z0-9][\\w-]*/[A-Za-z0-9][\\w-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hotel"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_city_hotels",
+    "title": "All hotels of a city",
+    "description": "Every listed hotel of a city, sold out ones included, with stars, rating and address; no prices.\n\nFilters apply to one page of 90 hotels at a time, so check `pages`. Prices:\nmb_search_hotels or mb_hotel_calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "description": "City slug from mb_find_place(mode='hotel'), e.g. 'mashhad' or 'kish'.",
+          "maxLength": 60,
+          "pattern": "^[A-Za-z][\\w-]*$",
+          "type": "string"
+        },
+        "stars": {
+          "default": null,
+          "description": "Only this star count, e.g. 4.",
+          "maximum": 5,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "hotel_type": {
+          "default": "any",
+          "description": "Kind of stay.",
+          "enum": [
+            "any",
+            "hotel",
+            "hotel_apartment",
+            "traditional",
+            "eco_lodge",
+            "guest_house",
+            "boutique",
+            "other"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "default": null,
+          "description": "Only names containing this text, e.g. 'درویشی'.",
+          "maxLength": 60,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "page": {
+          "default": 1,
+          "description": "Page of 90 hotels (the site's ranking order).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "limit": {
+          "default": 20,
+          "description": "Max hotels returned from the page.",
+          "maximum": 90,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "city"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_search_trains",
+    "title": "Search trains",
+    "description": "Trains between two stations on a date with every class (wagon), its price per adult and free seats.\n\nprice_toman is per adult; for children, infants or a compartment call mb_train_price with\nthe class_id. Top-level refund_penalties apply to every class unless it lists its own. Stops:\nmb_train_stops. No seats: mb_train_price_calendar or mb_alternative_routes. A round trip is\ntwo calls (return leg with outbound_class_id).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "date": {
+          "description": "Travel date YYYY-MM-DD (sales open about 18 days ahead).",
+          "format": "date",
+          "type": "string"
+        },
+        "quota": {
+          "default": "general",
+          "description": "Seat quota: general (mixed), men, women, or car transport.",
+          "enum": [
+            "general",
+            "men",
+            "women",
+            "car"
+          ],
+          "type": "string"
+        },
+        "sort": {
+          "default": "earliest",
+          "description": "Order of the trains.",
+          "enum": [
+            "cheapest",
+            "earliest"
+          ],
+          "type": "string"
+        },
+        "available_only": {
+          "default": true,
+          "description": "Hide sold-out classes and trains with no free seat.",
+          "type": "boolean"
+        },
+        "outbound_class_id": {
+          "default": null,
+          "description": "Return leg of a round trip only: the outbound class_id (limits the return to the same rail company).",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 20,
+          "description": "Max trains.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_train_price_calendar",
+    "title": "Train price calendar",
+    "description": "Cheapest train ticket per day (one adult) for a route, only days with free seats.\n\nThen mb_search_trains for the chosen day. Sales open about 18 days ahead.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "start_date": {
+          "default": null,
+          "description": "First day YYYY-MM-DD; default today.",
+          "format": "date",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "days": {
+          "default": 30,
+          "description": "Number of days to cover.",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "seats": {
+          "default": 1,
+          "description": "Seats needed.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "quota": {
+          "default": "general",
+          "description": "Seat quota: general (mixed), men, women, or car transport.",
+          "enum": [
+            "general",
+            "men",
+            "women",
+            "car"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_train_price",
+    "title": "Train ticket price",
+    "description": "Exact price of one train class for a party: per adult, child, infant, foreigner and empty berth, and the total.\n\nA sold-out class still returns a price: check seats_left in the search first. The breakdown\ndoes not add up exactly to the price; the price is what is paid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "class_id": {
+          "description": "class_id from a fresh mb_search_trains result.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "adults": {
+          "default": 1,
+          "description": "Adults (12+).",
+          "maximum": 9,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "description": "Children (2-11).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "infants": {
+          "default": 0,
+          "description": "Infants (under 2).",
+          "maximum": 8,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "foreigners": {
+          "default": 0,
+          "description": "Foreign passengers (priced separately).",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "empty_seats": {
+          "default": 0,
+          "description": "Empty berths to buy for a whole compartment, e.g. 1 for 3 people in a 4-berth.",
+          "maximum": 5,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "class_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_train_stops",
+    "title": "Train stops",
+    "description": "Every station a train stops at, in order, with the date and local time at each.\n\nTakes a class_id, never a train number. The first stop can be before your station.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "class_id": {
+          "description": "class_id from a fresh mb_search_trains result.",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "class_id"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "mb_alternative_routes",
+    "title": "Alternative routes",
+    "description": "Alternatives when direct trains are full or dear: trips with one change, and nearby train, bus and flight routes.\n\nwith_one_change: up to 7 journeys with one change, any mix of train and bus (price per\nadult). nearby_*: routes near the two stations with the cheapest price where known\n(classes_listed is a raw count, not bookable classes); pass their ids to mb_search_trains,\nmb_search_buses or mb_search_flights. Seat counts here can be cached: confirm with a search.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Train station id from mb_find_place(mode='train'), e.g. 1 (Tehran).",
+          "maximum": 9999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "date": {
+          "description": "Travel date YYYY-MM-DD (sales open about 18 days ahead).",
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "date"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  }
+]

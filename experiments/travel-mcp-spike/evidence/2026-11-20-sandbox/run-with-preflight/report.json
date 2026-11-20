@@ -1,0 +1,130 @@
+{
+  "runId": "2026-11-20T08-25-36-984Z",
+  "scenario": {
+    "id": "thr-kih-2026-12",
+    "originQuery": "تهران",
+    "destinationQuery": "کیش",
+    "destinationNeedles": [
+      "کیش",
+      "kish"
+    ],
+    "outboundDate": "2026-12-10",
+    "returnDate": "2026-12-13",
+    "checkIn": "2026-12-10",
+    "checkOut": "2026-12-13",
+    "adults": 1,
+    "rooms": 1,
+    "iataFallback": {
+      "origin": "THR",
+      "destination": "KIH"
+    }
+  },
+  "generatedAt": "2026-11-20T08:25:36.994Z",
+  "preflights": [
+    {
+      "provider": "mrbilit",
+      "reachable": false,
+      "checks": [
+        {
+          "host": "flight.atighgasht.com",
+          "dns": "fail",
+          "tls": "skipped",
+          "ms": 3,
+          "error": "getaddrinfo EAI_AGAIN"
+        },
+        {
+          "host": "hotel.mrbilit.ir",
+          "dns": "fail",
+          "tls": "skipped",
+          "ms": 1,
+          "error": "getaddrinfo EAI_AGAIN"
+        }
+      ]
+    },
+    {
+      "provider": "flytoday",
+      "reachable": false,
+      "checks": [
+        {
+          "host": "www.flytoday.ir",
+          "dns": "fail",
+          "tls": "skipped",
+          "ms": 1,
+          "error": "getaddrinfo EAI_AGAIN"
+        },
+        {
+          "host": "api.flytoday.ir",
+          "dns": "fail",
+          "tls": "skipped",
+          "ms": 0,
+          "error": "getaddrinfo EAI_AGAIN"
+        },
+        {
+          "host": "placesearch.flytoday.ir",
+          "dns": "fail",
+          "tls": "skipped",
+          "ms": 0,
+          "error": "getaddrinfo EAI_AGAIN"
+        }
+      ]
+    }
+  ],
+  "calls": [
+    {
+      "provider": "mrbilit",
+      "step": "preflight",
+      "tool": "-",
+      "params": {},
+      "checkedAt": "2026-11-20T08:25:36.992Z",
+      "latencyMs": null,
+      "outcome": "skipped",
+      "status": "NOT_TESTED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "flight.atighgasht.com: getaddrinfo EAI_AGAIN; hotel.mrbilit.ir: getaddrinfo EAI_AGAIN",
+      "providerNote": null,
+      "rawFile": null
+    },
+    {
+      "provider": "flytoday",
+      "step": "preflight",
+      "tool": "-",
+      "params": {},
+      "checkedAt": "2026-11-20T08:25:36.993Z",
+      "latencyMs": null,
+      "outcome": "skipped",
+      "status": "NOT_TESTED",
+      "resultCount": null,
+      "failureCause": "network_or_geo_block",
+      "error": "www.flytoday.ir: getaddrinfo EAI_AGAIN; api.flytoday.ir: getaddrinfo EAI_AGAIN; placesearch.flytoday.ir: getaddrinfo EAI_AGAIN",
+      "providerNote": null,
+      "rawFile": null
+    }
+  ],
+  "packages": [
+    {
+      "provider": "mrbilit",
+      "complete": false,
+      "outbound": null,
+      "return": null,
+      "hotel": null,
+      "totalPrice": null,
+      "currency": "TOMAN",
+      "note": "incomplete: at least one leg has no priced result"
+    },
+    {
+      "provider": "flytoday",
+      "complete": false,
+      "outbound": null,
+      "return": null,
+      "hotel": null,
+      "totalPrice": null,
+      "currency": "TOMAN",
+      "note": "incomplete: at least one leg has no priced result"
+    }
+  ],
+  "counts": {
+    "flights": 0,
+    "hotels": 0
+  }
+}

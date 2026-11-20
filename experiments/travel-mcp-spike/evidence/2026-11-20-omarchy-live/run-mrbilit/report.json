@@ -1,0 +1,198 @@
+{
+  "runId": "2026-11-20T08-52-18-107Z",
+  "scenario": {
+    "id": "thr-kih-2026-12",
+    "originQuery": "تهران",
+    "destinationQuery": "کیش",
+    "destinationNeedles": [
+      "کیش",
+      "kish"
+    ],
+    "outboundDate": "2026-12-10",
+    "returnDate": "2026-12-13",
+    "checkIn": "2026-12-10",
+    "checkOut": "2026-12-13",
+    "adults": 1,
+    "rooms": 1,
+    "iataFallback": {
+      "origin": "THR",
+      "destination": "KIH"
+    }
+  },
+  "generatedAt": "2026-11-20T08:52:30.876Z",
+  "preflights": [
+    {
+      "provider": "mrbilit",
+      "reachable": true,
+      "checks": [
+        {
+          "host": "flight.atighgasht.com",
+          "dns": "ok",
+          "ms": 387,
+          "tls": "ok",
+          "error": null
+        },
+        {
+          "host": "hotel.mrbilit.ir",
+          "dns": "ok",
+          "ms": 148,
+          "tls": "ok",
+          "error": null
+        }
+      ]
+    }
+  ],
+  "calls": [
+    {
+      "provider": "mrbilit",
+      "step": "resolve-origin",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "تهران",
+        "mode": "flight",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:52:21.281Z",
+      "latencyMs": 2842,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": null,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-01-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "resolve-dest",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "کیش",
+        "mode": "flight",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:52:24.125Z",
+      "latencyMs": 179,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": null,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-02-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "resolve-hotel",
+      "tool": "mb_find_place",
+      "params": {
+        "query": "کیش",
+        "mode": "hotel",
+        "limit": 10
+      },
+      "checkedAt": "2026-11-20T08:52:24.305Z",
+      "latencyMs": 645,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": null,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-03-mb_find_place.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "flight-outbound",
+      "tool": "mb_search_flights",
+      "params": {
+        "origin": "THR",
+        "destination": "KIH",
+        "date": "2026-12-10",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "provider-confirmed"
+      },
+      "checkedAt": "2026-11-20T08:52:24.951Z",
+      "latencyMs": 1324,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": 5,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-04-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "flight-return",
+      "tool": "mb_search_flights",
+      "params": {
+        "origin": "KIH",
+        "destination": "THR",
+        "date": "2026-12-13",
+        "adults": 1,
+        "limit": 15,
+        "sort": "cheapest",
+        "locationSource": "provider-confirmed"
+      },
+      "checkedAt": "2026-11-20T08:52:26.277Z",
+      "latencyMs": 790,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": 6,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-05-mb_search_flights.json"
+    },
+    {
+      "provider": "mrbilit",
+      "step": "hotels",
+      "tool": "mb_search_hotels",
+      "params": {
+        "city": "kish",
+        "check_in": "2026-12-10",
+        "check_out": "2026-12-13",
+        "sort": "cheapest",
+        "limit": 20
+      },
+      "checkedAt": "2026-11-20T08:52:27.068Z",
+      "latencyMs": 3518,
+      "outcome": "ok",
+      "status": "VERIFIED",
+      "resultCount": 20,
+      "failureCause": null,
+      "error": null,
+      "providerNote": null,
+      "rawFile": "raw/mrbilit-06-mb_search_hotels.json"
+    }
+  ],
+  "packages": [
+    {
+      "provider": "mrbilit",
+      "complete": true,
+      "outbound": {
+        "id": "21956337",
+        "totalPrice": 10594200
+      },
+      "return": {
+        "id": "21956366",
+        "totalPrice": 10794100
+      },
+      "hotel": {
+        "id": "10977",
+        "name": "هتل پانیذ",
+        "totalPrice": 3726000,
+        "nights": 3
+      },
+      "totalPrice": 25114300,
+      "currency": "TOMAN",
+      "note": "sum of whole-party flight fares + whole-stay one-room hotel price"
+    }
+  ],
+  "counts": {
+    "flights": 11,
+    "hotels": 20
+  }
+}

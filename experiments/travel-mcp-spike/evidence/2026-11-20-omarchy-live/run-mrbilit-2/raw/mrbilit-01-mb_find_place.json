@@ -1,0 +1,40 @@
+{
+  "provider": "mrbilit",
+  "tool": "mb_find_place",
+  "params": {
+    "query": "تهران",
+    "mode": "flight",
+    "limit": 10
+  },
+  "checkedAt": "2026-11-20T12:35:01.075Z",
+  "outcome": "ok",
+  "latencyMs": 2560,
+  "response": {
+    "airports": [
+      {
+        "code": "THR",
+        "city": "تهران",
+        "airport": "فرودگاه مهرآباد"
+      }
+    ],
+    "cities": [
+      {
+        "code": "THRALL",
+        "city": "Tehran",
+        "city_fa": "تهران",
+        "country": "Iran",
+        "airports": [
+          {
+            "code": "THR",
+            "name": "Mehrabad Arpt"
+          },
+          {
+            "code": "IKA",
+            "name": "Imam Khomeini Arpt"
+          }
+        ]
+      }
+    ]
+  },
+  "serverStderrTail": ""
+}
