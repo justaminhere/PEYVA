@@ -176,6 +176,7 @@ export class ToolRunner {
       case "update_trip_goal": {
         const p = parseArgs(LlmGoalPatchSchema, rawArgs);
         if (!p.ok) return err(name, p.reason + ' (dates and months must be {"text": "<the user\'s words>"})');
+        if (Object.keys(p.value).length === 0) return err(name, "empty update: only call update_trip_goal when the user's message adds or changes a detail");
         const mm = monthMismatch(patchDates(p.value), this.s.lastUserText());
         if (mm) return err(name, mm);
         const cc = crossCheckPatch(p.value, this.s.lastUserText(), this.s.goal);

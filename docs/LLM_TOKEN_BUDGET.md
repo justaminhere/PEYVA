@@ -93,6 +93,29 @@ Against the free tier (best case, same caveats as §3):
 Behaviour: all 62 agent tests and 35 spike tests pass, and the scripted conversation ends with the same deterministic 4★ total
 (28,681,300 Toman).
 
+## 7. Live measurement after the diet (chat 3, 2026-11-20 15:12–15:19 UTC)
+
+Evidence: `evidence/phase2a/chat-live-3-groq-qwen-token-diet.jsonl`. Real token counts come from the API's `usage` field.
+
+| Turn | Requests | Prompt tokens per request | Request latencies | Turn |
+|---|---:|---|---|---:|
+| «می‌خوام یه سفر سه شبه به کیش برم» | 2 | 1,759 / 1,982 | 1.3 / 0.4 s | 1.7 s |
+| «تهران، یک نفر، بودجه ۳۰ میلیون» | 3 | 1,896 / 2,162 / 2,476 | 0.6 / 0.7 / 0.8 s | 2.1 s |
+| «۱۹ آذر ۱۴۰۵» (+ real searches, compare) | 3 | 2,165 / 2,475 / 2,773 | 0.4 / **9.1 / 15.8 s** | 33.6 s |
+| «فقط هتل چهار ستاره به بالا باشه» (compare) | 4 | 2,552 / 2,854 / 3,140 / 3,437 | 0.5 / 0.5 / **13.9 / 29.4 s** | 44.3 s |
+| «اگه قیمت مناسب شد بهم خبر بده» | 1 | — | HTTP 429, daily limit (TPD 198,053 of 200,000 used) | 0.4 s |
+
+- **Real vs estimate:** 12 successful requests used 29,671 prompt and 601 completion tokens, on average **2,473 prompt tokens per
+  request**. The first request (fixed cost + a short message) was 1,759 tokens against the 1,497 estimate, so characters ÷ 3.5
+  under-counts by about 15%; ≈ 3.0 characters per token fits this prompt better.
+- **Latency:** clarification turns now take ~2 s, against 16–25 s before the diet. Comparison turns still take 33–44 s. There, single
+  requests with tiny outputs took 9–29 s, which is consistent with waiting on the per-minute token limit: 3–4 requests of 2.5–3.4k
+  tokens within a minute exceed 8,000 TPM. That last part is an inference, since the run did not log retry headers.
+- **Daily limit:** the day's earlier test runs had used almost all 200,000 tokens, so turn 5 got a 429. The reply was honest, but
+  the turn ended before the app's own checks ran, so the monitoring wish was not recorded. Fixed: the deterministic checks now run on
+  every exit of a turn, and the rate-limit reply names the limit (daily or per minute) and the wait time.
+- **Wasted request:** in turn 4 the model first sent `update_trip_goal({})`. Empty updates are now refused, and the prompt forbids them.
+
 ## 5. How to verify a change
 
 1. `bun run peyva:token-budget` before and after: the fixed estimate must drop as expected.

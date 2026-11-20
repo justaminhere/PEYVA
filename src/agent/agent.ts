@@ -67,6 +67,19 @@ const LLM_ERROR_FA: Record<string, string> = {
   provider: "سرویس مدل زبانی خطا داد.",
 };
 
+/** "Please try again in 8m9.888s" + "(TPD)" -> a Persian hint with the limit type and wait time. */
+export function rateLimitHint(message: string): string {
+  const daily = /per day|\bTPD\b|\bRPD\b/i.test(message);
+  const m = message.match(/try again in\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:([\d.]+)s)?/i);
+  const fa = (n: number) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]!);
+  let wait = "";
+  if (m && (m[1] || m[2] || m[3])) {
+    const mins = Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0) + (Number(m[3] ?? 0) > 0 ? 1 : 0);
+    wait = mins >= 1 ? ` حدود ${fa(mins)} دقیقهٔ دیگر دوباره امتحان کن.` : " چند ثانیهٔ دیگر دوباره امتحان کن.";
+  }
+  return `${daily ? "سهمیهٔ روزانهٔ توکن یا درخواستِ سرویس مدل زبانی تمام شده است." : "سرویس مدل زبانی محدودیت نرخ دقیقه‌ای اعمال کرد."}${wait}`;
+}
+
 export async function runTurn(s: Session, llm: LlmClient, userText: string): Promise<TurnResult> {
   s.messages.push({ role: "user", content: userText });
   s.turnSearches = 0;
@@ -96,7 +109,10 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
       continue;
     }
     if (!res.ok) {
-      return done({ reply: `${LLM_ERROR_FA[res.cause] ?? "خطای مدل زبانی."} (${res.cause})`, events, newComparison: s.lastComparison?.at !== compareBefore,
+      // The user's own words are still checked by code when the LLM fails (e.g. the monitoring wish).
+      afterTurnChecks(s, userText, warnings, appActions, false);
+      const msg = res.cause === "rate_limit" ? rateLimitHint(res.message) : LLM_ERROR_FA[res.cause] ?? "خطای مدل زبانی.";
+      return done({ reply: `${msg} (${res.cause})`, events, newComparison: s.lastComparison?.at !== compareBefore,
         warnings, llmError: `${res.cause}: ${res.message}`, iterations: i });
     }
     if (res.toolCalls.length) {
@@ -128,15 +144,25 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
     // A window spans months: allow every month between its ends.
     if (d.window) for (let x = d.window.from; x <= d.window.to; x = new Date(Date.parse(x) + 86_400_000 * 10).toISOString().slice(0, 10)) known.push(x);
     if (unverifiedMonths(reply, known, (iso) => gregorianToJalali(iso).jm).length) warnings.push(DATE_WARNING);
-    // The user's own words, checked by code after the turn: monitoring wish and details that were never recorded.
-    const sig = signalsIn(userText);
-    if (sig.monitoring && !s.goal.monitoringRequested) { s.goal.monitoringRequested = true; appActions.push("monitoringRequested set from the user's words"); }
-    const missed = crossCheckPatch({}, userText, s.goal).unrecorded.filter((u) => !u.startsWith("monitoringRequested"));
-    if (missed.length) warnings.push(`⚠ این جزئیات از پیامت در هدف ثبت نشد: ${missed.map((m) => m.split(":")[0]).map((k) => ({ travellers: "تعداد مسافر", budget: "بودجه", minimumHotelStars: "ستارهٔ هتل", nights: "تعداد شب" } as Record<string, string>)[k!] ?? k).join("، ")}. دوباره بگو یا با /goal بررسی کن.`);
-    if (s.goal.monitoringRequested && !s.monitoringNoticeShown) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
+    afterTurnChecks(s, userText, warnings, appActions, true);
     return done({ reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: null, iterations: i });
   }
+  afterTurnChecks(s, userText, warnings, appActions, true);
   const reply = "نتوانستم در محدودهٔ مجاز مراحل به نتیجه برسم. لطفاً درخواستت را ساده‌تر یا دقیق‌تر بگو.";
   s.messages.push({ role: "assistant", content: reply });
   return done({ reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: "iteration limit", iterations: MAX_ITERATIONS });
+}
+
+/**
+ * Deterministic checks of the user's own words, run on every exit of a turn: the monitoring wish is recorded and its
+ * notice shown; details the user gave that never reached the goal are listed (only when the LLM actually processed the turn).
+ */
+function afterTurnChecks(s: Session, userText: string, warnings: string[], appActions: string[], llmProcessed: boolean) {
+  const sig = signalsIn(userText);
+  if (sig.monitoring && !s.goal.monitoringRequested) { s.goal.monitoringRequested = true; appActions.push("monitoringRequested set from the user's words"); }
+  if (llmProcessed) {
+    const missed = crossCheckPatch({}, userText, s.goal).unrecorded.filter((u) => !u.startsWith("monitoringRequested"));
+    if (missed.length) warnings.push(`⚠ این جزئیات از پیامت در هدف ثبت نشد: ${missed.map((m) => m.split(":")[0]).map((k) => ({ travellers: "تعداد مسافر", budget: "بودجه", minimumHotelStars: "ستارهٔ هتل", nights: "تعداد شب" } as Record<string, string>)[k!] ?? k).join("، ")}. دوباره بگو یا با /goal بررسی کن.`);
+  }
+  if (s.goal.monitoringRequested && !s.monitoringNoticeShown) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
 }

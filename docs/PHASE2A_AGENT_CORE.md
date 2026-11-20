@@ -142,6 +142,16 @@ rate-limit retries) was not logged; per-request latency and token usage are now 
 - **Monitoring wish detected in the user's words** → the flag is set by the app and the notice is shown.
 - **Today's month** no longer triggers the date warning.
 
+### 4.3 Live chat 3: after the token diet, 15:12–15:19 UTC (`evidence/phase2a/chat-live-3-groq-qwen-token-diet.jsonl`)
+
+- **The cross-check worked live.** For «تهران، یک نفر، بودجه ۳۰ میلیون», the model again sent `{"origin":"تهران","rooms":1}`. Code
+  dropped the invented `rooms`, reported travellers and budget as `mentionedButNotRecorded`, and the model's next call recorded
+  `adults: 1, budgetText: "۳۰ میلیون"`. The final `rooms: 1` is derived by code from one traveller.
+- Dates went as text (`{"text":"۱۹ آذر ۱۴۰۵"}` → 2026-12-10). Real searches gave 25,114,300, and with ≥4★ 28,681,300 (cached fresh
+  results). No guard warnings. The replies cited no prices.
+- Turn 5 hit Groq's daily token limit (429). Fixed afterwards (deterministic checks on every exit; Persian hint with the limit and
+  the wait time), with replay tests in `test/live-replay-2.test.ts`. Token and latency figures are in `docs/LLM_TOKEN_BUDGET.md` §7.
+
 Executed on the developer machine (Omarchy, 2026-11-20):
 - `bun run peyva:tools-check` ×2: 8/8 provider calls ok, latencies 0.6–3.5 s, total 25,114,300 Toman, exit 0.
 

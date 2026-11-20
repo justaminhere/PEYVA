@@ -98,3 +98,27 @@ test("live turn 4: mentioning today's month (Aban) is not a date warning", async
     say("الان ۲۹ آبان ۱۴۰۵ هستیم، پس ۱۹ آذر یعنی حدود دو هفته دیگه.")]), "۱۹ آذر ۱۴۰۵");
   expect(t.warnings).not.toContain(DATE_WARNING);
 });
+
+// ---- live chat 3 (2026-11-20 15:12–15:19 UTC, after the token diet) ----
+
+import { rateLimitHint } from "../src/agent/agent.ts";
+
+test("live chat 3, turn 5: daily quota exhausted -> honest Persian hint with wait time, monitoring still recorded by code", async () => {
+  const s = new Session(new RecordedProvider(now), now);
+  const live = "429 Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_x` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 198053, Requested 3081. Please try again in 8m9.888s.";
+  const t = await runTurn(s, new ScriptedLlm([{ ok: false, cause: "rate_limit", message: live }]), "اگه قیمت مناسب شد بهم خبر بده");
+  expect(t.reply).toContain("سهمیهٔ روزانه");
+  expect(t.reply).toContain("۹ دقیقه");
+  expect(s.goal.monitoringRequested).toBe(true);
+  expect(t.warnings).toContain(MONITORING_NOTICE);
+  expect(rateLimitHint("Rate limit reached ... tokens per minute (TPM) ... Please try again in 3.2s.")).toContain("دقیقه‌ای");
+});
+
+test("live chat 3, turn 4: an empty update_trip_goal({}) is refused instead of silently accepted", async () => {
+  const s = new Session(new RecordedProvider(now), now);
+  await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", {})), tools(call("update_trip_goal", { minimumHotelStars: 4 })), say("…")]), "فقط هتل چهار ستاره به بالا باشه");
+  const r = toolResults(s);
+  expect(r[0].ok).toBe(false);
+  expect(r[0].error).toContain("empty update");
+  expect(s.goal.minimumHotelStars).toBe(4);
+});
