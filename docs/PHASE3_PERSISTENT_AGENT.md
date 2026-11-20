@@ -1,6 +1,6 @@
 # Phase 3: persistent memory, goals and monitoring
 
-Status: implemented and tested offline against a real PostgreSQL 18 and recorded MrBilit data. The live provider check from the development VM classified correctly as `PROVIDER_ERROR` because that VM's network blocks the provider. **A live `MATCH_FOUND` against MrBilit is still to be run on the Omarchy machine. Live Telegram delivery: NOT VERIFIED.**
+Status: implemented and tested offline against a real PostgreSQL 18 and recorded MrBilit data. The live provider check from the development VM classified correctly as `PROVIDER_ERROR` because that VM's network blocks the provider. **Live on Omarchy (2026-11-20): `worker --once` against MrBilit returned `MATCH_FOUND` at 25,114,300 Toman after 3 searches. It stored an in-app alert and set the next check +6 h. Live Telegram delivery: NOT VERIFIED.**
 
 ## 1. Scope and mode
 
@@ -113,7 +113,11 @@ If several candidate dates give different results, the precedence is MATCH > PRO
   - An alert is sent only for `MATCH_FOUND`, never for errors or empty data.
   - An in-app row is always written. A Telegram row is written only if the user completed a verified link.
   - The deduplication key is `match:{goal}:{matchKey}:{total}:{channel}` (UNIQUE).
-  - An unchanged result never re-alerts. A new alert needs either a price improvement of ≥ 5 % or a different option after the 24 h cooldown.
+  - An unchanged result never re-alerts. A new alert is sent in three cases:
+    - **The flight changed** (user decision). A different flight number on either leg, or a different departure date, alerts at once, even within the cooldown. The alert says what changed: "پرواز رفت: قبلاً ZV 4030، حالا W5 1234". Provider fare ids are ignored, because they can change while the flight stays the same.
+    - **A price improvement of ≥ 5 %.**
+    - **A different option (for example, a hotel-only change) after the 24 h cooldown.**
+  - A → B → A alerts again, because the user was last told B. The same result after the same previous alert is stored only once, since the dedup key includes the previous alert id. Checks run at most every 6 h, so flapping is bounded to about 4 alerts a day.
 - **Message:** the alert text gives the goal, the dates, the flight and hotel, the total in Toman, the provider and the check time in Tehran time. It ends with the note "این رزرو نیست؛ قیمت ممکن است تغییر کند".
 - **Telegram linking:**
   - `/telegram link` creates a one-time, 8-character code. It is stored as sha256 and is valid for 15 minutes, and the command shows the `t.me/<bot>?start=CODE` link.
@@ -152,12 +156,12 @@ For a permanent worker on Linux, run `bun run peyva:worker` under a systemd user
 
 ## 12. Tests, limits and next steps
 
-`bun run test` gives 106 tests, all passing:
+`bun run test` gives 109 tests, all passing:
 
 - 68 Phase 2 tests.
 - `db` (3): the check constraint and a real server restart.
 - `memory-goals` (14).
-- `worker` (15): claiming, crash recovery, retries, timeout, pause during a run, dedup and cooldown, Telegram linking and delivery states, token scrubbing, injection.
+- `worker` (18): claiming, crash recovery, retries, timeout, pause during a run, dedup and cooldown, flight-change alerts, Telegram linking and delivery states, token scrubbing, injection.
 - `phase3-chat` (6): LLM draft → code approval, "no" and unrelated replies, the false-claim guard, preferences, slash commands, the no-database mode.
 
 `bun run typecheck` is clean. Tests use a real embedded PostgreSQL 18 (`test/support/pg.ts`).
@@ -165,7 +169,7 @@ For a permanent worker on Linux, run `bun run peyva:worker` under a systemd user
 A smoke test on the dev VM used a real database, the goals CLI create → approve → list, and `worker --once` against live MrBilit. The worker recorded `PROVIDER_ERROR (network_or_geo_block)` with a 15-minute retry, and `show` displayed the last failure separately from the last success.
 
 **Known limits:**
-- The live `MATCH_FOUND` and Telegram delivery are not yet verified.
+- Live Telegram delivery is not yet verified.
 - There is one provider (MrBilit) and one executor.
 - The hotel recordings used in tests cover only 3-night stays.
 - There is no authentication, by design (single-user).

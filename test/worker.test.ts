@@ -193,6 +193,61 @@ test("a small change within the cooldown does not re-alert", async () => {
   expect((await notifier.list("amin")).length).toBe(1);
 });
 
+const swapCheapestFlight = (no: string, id: string) => (d: any) => {
+  const cheapest = [...d.flights].sort((x: any, y: any) => x.total_toman - y.total_toman)[0];
+  cheapest.flight_id = id; cheapest.segments[0].flights = [no];
+  return d;
+};
+
+test("a different flight number at the same price alerts at once (even within the cooldown) and says what changed", async () => {
+  const { svc, worker, notifier } = setup();
+  const g = await activeGoal(svc);
+  await worker.runOnce();
+  const first = ((await notifier.list("amin"))[0]!.payload as any).text as string;
+  expect(first).toContain("ZV 4030"); // flight numbers are now part of every alert
+  const swapped = new RecordedProvider(now, { "F:THR-KIH-2026-12-10": swapCheapestFlight("W5 1234", "99999999") });
+  clock = new Date(clock.getTime() + MIN_INTERVAL_MS); // 6 h later: well within the 24 h cooldown
+  const r = await setup(swapped).worker.runOnce();
+  expect(r.outcomes[0]).toMatchObject({ goalId: g.id, status: "MATCH_FOUND", notified: ["in_app"] });
+  const list = await notifier.list("amin");
+  expect(list).toHaveLength(2);
+  const text = (list[0]!.payload as any).text as string;
+  expect(text).toContain("پرواز گزینهٔ پیشنهادی عوض شد");
+  expect(text).toContain("پرواز رفت: قبلاً ZV 4030، حالا W5 1234");
+  expect(text).not.toContain("پرواز برگشت: قبلاً"); // only the leg that changed is listed
+  expect((list[0]!.payload as any).totalToman).toBe(25_114_300);
+});
+
+test("a new fare id for the same flight number, or a hotel-only change within the cooldown, does not alert", async () => {
+  const { svc, worker, notifier } = setup();
+  await activeGoal(svc);
+  await worker.runOnce();
+  const sameFlightNewId = new RecordedProvider(now, { "F:THR-KIH-2026-12-10": swapCheapestFlight("ZV 4030", "11111111") });
+  clock = new Date(clock.getTime() + MIN_INTERVAL_MS);
+  expect((await setup(sameFlightNewId).worker.runOnce()).outcomes[0]!.notified).toEqual([]);
+  expect((await notifier.list("amin")).length).toBe(1);
+});
+
+test("flight A -> B -> A: the user (last told B) is told again; processing the same result twice never duplicates", async () => {
+  const { svc, worker, notifier } = setup();
+  await activeGoal(svc);
+  await worker.runOnce(); // A
+  clock = new Date(clock.getTime() + MIN_INTERVAL_MS);
+  await setup(new RecordedProvider(now, { "F:THR-KIH-2026-12-10": swapCheapestFlight("W5 1234", "99999999") })).worker.runOnce(); // B
+  clock = new Date(clock.getTime() + MIN_INTERVAL_MS);
+  const back = await worker.runOnce(); // A again
+  expect(back.outcomes[0]!.notified).toEqual(["in_app"]);
+  const list = await notifier.list("amin");
+  expect(list).toHaveLength(3);
+  expect((list[0]!.payload as any).text).toContain("پرواز رفت: قبلاً W5 1234، حالا ZV 4030");
+  // the same match queued twice (e.g. a retried pass) is stored once
+  const g = (await svc.list("amin"))[0]!;
+  const again = await notifier.queueMatch(g, { key: (list[1]!.payload as any).key, totalToman: 25_114_300, provider: "mrbilit", checkedAt: clock.toISOString(), details: (list[1]!.payload as any).details });
+  expect(again.queued).toBe(true); // B after A is a change...
+  expect((await notifier.queueMatch(g, { key: (list[1]!.payload as any).key, totalToman: 25_114_300, provider: "mrbilit", checkedAt: clock.toISOString(), details: (list[1]!.payload as any).details })).queued).toBe(false); // ...but only once
+  expect(await notifier.list("amin")).toHaveLength(4);
+});
+
 // ---------- Telegram (fake Bot API only) ----------
 
 test("Telegram is opt-in via a verified bot interaction; codes are single-use, per user, and expire", async () => {

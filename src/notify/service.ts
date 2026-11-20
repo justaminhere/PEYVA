@@ -22,15 +22,48 @@ export interface NotifyOptions { cooldownMs?: number; improvementPct?: number; m
 
 const tehran = (iso: string) => tehranDateTime(new Date(iso));
 
-export function formatMatchFa(goal: Pick<Goal, "id" | "name">, m: ExecutionMatch): string {
-  const d = m.details as { departure: string; return: string; nights: number; hotel?: { name?: string; stars?: number } | null; outboundFlight?: { airline?: string } | null };
+interface FlightInfo { flightNumbers?: string[]; airline?: string | null; departureTime?: string | null }
+interface MatchDetails { departure: string; return: string; nights: number; hotel?: { name?: string; stars?: number } | null; outboundFlight?: FlightInfo | null; returnFlight?: FlightInfo | null }
+
+const flightNo = (f: FlightInfo | null | undefined) => (f?.flightNumbers?.length ? f.flightNumbers.map((x) => cleanText(x, 12)).join(" + ") : "؟");
+const clock = (iso: string | null | undefined) => (iso && /T(\d\d:\d\d)/.test(iso) ? toPersianDigits(iso.match(/T(\d\d:\d\d)/)![1]!) : null);
+const flightLine = (label: string, f: FlightInfo | null | undefined) =>
+  f ? `${label}: ${f.airline ? cleanText(f.airline, 30) + " " : ""}${flightNo(f)}${clock(f.departureTime) ? ` · ساعت ${clock(f.departureTime)}` : ""}` : null;
+
+/**
+ * What identifies "the same trip" for alerting: the departure date and the flight numbers of both legs.
+ * Provider fare ids are deliberately NOT used: they can change between searches while the flight stays the same.
+ */
+export function flightSignature(details: unknown): string | null {
+  const d = details as Partial<MatchDetails> | null | undefined;
+  if (!d?.departure) return null;
+  return [d.departure, d.outboundFlight?.flightNumbers?.join("+") ?? "", d.returnFlight?.flightNumbers?.join("+") ?? ""].join("|");
+}
+
+/** Human description of a flight change between two alerts, or null if the flights are the same. */
+export function describeFlightChange(prev: unknown, next: unknown): string | null {
+  const a = prev as Partial<MatchDetails> | null | undefined, b = next as Partial<MatchDetails> | null | undefined;
+  if (!a || !b || flightSignature(a) === flightSignature(b)) return null;
+  const parts: string[] = [];
+  if (a.departure !== b.departure && a.departure && b.departure) parts.push(`تاریخ رفت: قبلاً ${formatJalaliFa(a.departure)}، حالا ${formatJalaliFa(b.departure)}`);
+  if (flightNo(a.outboundFlight) !== flightNo(b.outboundFlight)) parts.push(`پرواز رفت: قبلاً ${flightNo(a.outboundFlight)}، حالا ${flightNo(b.outboundFlight)}`);
+  if (flightNo(a.returnFlight) !== flightNo(b.returnFlight)) parts.push(`پرواز برگشت: قبلاً ${flightNo(a.returnFlight)}، حالا ${flightNo(b.returnFlight)}`);
+  return parts.length ? parts.join("\n") : null;
+}
+
+export function formatMatchFa(goal: Pick<Goal, "id" | "name">, m: ExecutionMatch, change: { flights?: string | null; previousTotal?: number | null } = {}): string {
+  const d = m.details as unknown as MatchDetails;
+  const delta = change.previousTotal && change.previousTotal !== m.totalToman
+    ? ` (${m.totalToman < change.previousTotal ? "ارزان‌تر" : "گران‌تر"} از اعلان قبلی: ${formatToman(change.previousTotal)} تومان)` : "";
   return [
-    `🔔 پیوا: گزینه‌ای در بودجه‌ات پیدا شد`,
+    change.flights ? `🔔 پیوا: پرواز گزینهٔ پیشنهادی عوض شد` : `🔔 پیوا: گزینه‌ای در بودجه‌ات پیدا شد`,
     `هدف: ${cleanText(goal.name, 80)} (#${toPersianDigits(goal.id)})`,
+    change.flights ? `تغییر نسبت به اعلان قبلی:\n${change.flights}` : null,
     `تاریخ: ${formatJalaliFa(d.departure)} تا ${formatJalaliFa(d.return)}`,
+    flightLine("پرواز رفت", d.outboundFlight),
+    flightLine("پرواز برگشت", d.returnFlight),
     d.hotel?.name ? `هتل: ${cleanText(d.hotel.name, 50)}${d.hotel.stars ? ` (${toPersianDigits(d.hotel.stars)} ستاره)` : ""}` : null,
-    d.outboundFlight?.airline ? `پرواز: ${cleanText(d.outboundFlight.airline, 30)}` : null,
-    `جمع مشاهده‌شده: ${formatToman(m.totalToman)} تومان`,
+    `جمع مشاهده‌شده: ${formatToman(m.totalToman)} تومان${delta}`,
     `منبع: ${m.provider} · بررسی: ${tehran(m.checkedAt)} (تهران)`,
     `قیمت و ظرفیت ممکن است تغییر کند؛ این رزرو نیست.`,
   ].filter(Boolean).join("\n");
@@ -51,17 +84,23 @@ export class NotificationService {
     const [last] = await this.db.select().from(notifications)
       .where(and(eq(notifications.goalId, goal.id), eq(notifications.type, "match_found"), eq(notifications.channel, "in_app")))
       .orderBy(desc(notifications.createdAt)).limit(1);
-    const prev = last?.payload as { key?: string; totalToman?: number } | undefined;
+    const prev = last?.payload as { key?: string; totalToman?: number; details?: unknown } | undefined;
+    const flightChange = last ? describeFlightChange(prev?.details, m.details) : null;
     let why: string | null = null;
     if (!last) why = "first match";
     else if (prev?.key === m.key && prev?.totalToman === m.totalToman) return { queued: false, reason: "unchanged result", channels: [] };
+    // The user's rule: a different flight (number or date) is always worth telling, even within the cooldown,
+    // because the flight they were told about may be gone. Checks run at most every 6 h, which bounds the volume.
+    else if (flightChange) why = "flight changed";
     else if (prev?.totalToman && m.totalToman <= prev.totalToman * (1 - this.improvementPct / 100)) why = `price improved ≥ ${this.improvementPct}%`;
     else if (now.getTime() - last.createdAt.getTime() >= this.cooldownMs && prev?.key !== m.key) why = "different option after cooldown";
     if (!why) return { queued: false, reason: "within cooldown / no meaningful improvement", channels: [] };
 
-    const text = formatMatchFa(goal, m);
+    const text = formatMatchFa(goal, m, { flights: flightChange, previousTotal: prev?.totalToman ?? null });
     const payload = { key: m.key, totalToman: m.totalToman, provider: m.provider, checkedAt: m.checkedAt, text, details: m.details };
-    const dedup = (ch: string) => `match:${goal.id}:${m.key}:${m.totalToman}:${ch}`;
+    // Same result after the same previous alert = the same alert (protects against double processing), but A -> B -> A
+    // is a real change for the user, who was last told about B, so it alerts again.
+    const dedup = (ch: string) => `match:${goal.id}:${m.key}:${m.totalToman}:after:${last?.id ?? 0}:${ch}`;
     const channels: string[] = [];
     const inApp = await this.db.insert(notifications).values({ userId: goal.userId, goalId: goal.id, type: "match_found", channel: "in_app", payload,
       deliveryStatus: "stored", deduplicationKey: dedup("in_app"), createdAt: now }).onConflictDoNothing().returning({ id: notifications.id });
