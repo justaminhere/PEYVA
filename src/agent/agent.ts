@@ -20,6 +20,9 @@ export interface TurnResult {
   warnings: string[];
   llmError: string | null;
   iterations: number;
+  /** Every tool call the LLM made this turn, with its (truncated) arguments and whether validation/execution succeeded. */
+  toolCalls: { name: string; arguments: string; ok: boolean }[];
+  durationMs: number;
 }
 
 const LLM_ERROR_FA: Record<string, string> = {
@@ -41,12 +44,15 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
   const warnings: string[] = [];
   const compareBefore = s.lastComparison?.at ?? null;
   let toolCalls = 0;
+  const calls: TurnResult["toolCalls"] = [];
+  const t0 = performance.now();
+  const done = (r: Omit<TurnResult, "toolCalls" | "durationMs">): TurnResult => ({ ...r, toolCalls: calls, durationMs: Math.round(performance.now() - t0) });
 
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
     const res = await llm.complete([{ role: "system", content: systemPrompt(s) }, ...s.messages], TOOL_SPECS);
     if (!res.ok) {
-      return { reply: `${LLM_ERROR_FA[res.cause] ?? "خطای مدل زبانی."} (${res.cause})`, events, newComparison: s.lastComparison?.at !== compareBefore,
-        warnings, llmError: `${res.cause}: ${res.message}`, iterations: i };
+      return done({ reply: `${LLM_ERROR_FA[res.cause] ?? "خطای مدل زبانی."} (${res.cause})`, events, newComparison: s.lastComparison?.at !== compareBefore,
+        warnings, llmError: `${res.cause}: ${res.message}`, iterations: i });
     }
     if (res.toolCalls.length) {
       s.messages.push({ role: "assistant", content: res.text, toolCalls: res.toolCalls });
@@ -56,6 +62,7 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
           continue;
         }
         const out = await runner.run(call.name, call.arguments);
+        calls.push({ name: call.name, arguments: call.arguments.slice(0, 600), ok: out.ok });
         events.push(...out.events);
         s.messages.push({ role: "tool", toolCallId: call.id, content: out.content });
       }
@@ -71,9 +78,9 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
     if (unverifiedPrices(reply, allowed).length) warnings.push(PRICE_WARNING);
     if (claimsUnauthorizedAction(reply)) warnings.push(ACTION_WARNING);
     if (s.goal.monitoringRequested && !s.monitoringNoticeShown) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
-    return { reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: null, iterations: i };
+    return done({ reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: null, iterations: i });
   }
   const reply = "نتوانستم در محدودهٔ مجاز مراحل به نتیجه برسم. لطفاً درخواستت را ساده‌تر یا دقیق‌تر بگو.";
   s.messages.push({ role: "assistant", content: reply });
-  return { reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: "iteration limit", iterations: MAX_ITERATIONS };
+  return done({ reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: "iteration limit", iterations: MAX_ITERATIONS });
 }

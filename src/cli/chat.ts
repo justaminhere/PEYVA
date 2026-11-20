@@ -55,7 +55,8 @@ rl.on("line", (line) => {
       if (t.newComparison && session.lastComparison) console.log(renderComparison(session.lastComparison, new Date()));
       console.log(`\nپیوا › ${t.reply}`);
       for (const w of t.warnings) console.log(w);
-      await log.write({ type: "turn", user: text, reply: t.reply, events: t.events, warnings: t.warnings, llmError: t.llmError, iterations: t.iterations,
+      await log.write({ type: "turn", user: text, reply: t.reply, toolCalls: t.toolCalls, durationMs: t.durationMs, goal: session.goalSummary(),
+        events: t.events, warnings: t.warnings, llmError: t.llmError, iterations: t.iterations,
         comparisonTotals: t.newComparison ? session.lastComparison?.results.map((c) => c.options[0]?.totalToman ?? null) : undefined });
     } catch (e) {
       console.log(`پیوا › خطای داخلی: ${(e as Error).message}`);
