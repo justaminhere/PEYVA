@@ -2,7 +2,8 @@
 
 - **Date:** 2026-11-20
 - **Status: PARTIAL.** The agent core is implemented and tested. The tool layer is **VERIFIED live** against MrBilit on the
-  developer machine (§4). Live LLM execution is **NOT VERIFIED** yet: a Groq key was added, but no chat run has been recorded.
+  developer machine (§4). A first live chat with a real LLM (Groq, `qwen/qwen3.8-27b`) ran 8 turns and **found a date bug**, now fixed
+  (§4.1). A rerun with the fix is needed before the status can become COMPLETE.
 
 ## 1. What was built
 
@@ -76,7 +77,7 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
 
 | Item | Evidence | Status |
 |---|---|---|
-| Persian goal extraction **by a real LLM** | needs a configured key | **NOT VERIFIED** |
+| Persian goal extraction **by a real LLM** | live chat 1 (§4.1): understood Persian, clarified, merged context, no invented values; **one wrong month mapping** | **PARTIAL**: fix needs a live rerun |
 | Multi-turn clarification + merge | `test/agent.test.ts` (the spec's 3-turn dialogue), `test/goal-state.test.ts` | VERIFIED (scripted LLM) |
 | Goal validated before any tool runs | compare before ready → rejected, 0 provider calls; 6 kinds of invalid tool calls rejected, 0 provider calls | VERIFIED (unit) |
 | Uses the existing real MCP integration | `bun run peyva:tools-check` on Omarchy, 13:49 and 13:50 UTC: 8/8 MrBilit calls ok (`evidence/phase2a/`) | **VERIFIED live** |
@@ -87,6 +88,31 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
 | Prompt injection in provider content | injected hotel name with a bidi override: fenced, cleaned, a "book_hotel" call it provokes is rejected, numbers unchanged | VERIFIED (unit) |
 | Unauthorized actions | unknown tools (book, alert) rejected; false booking claim → visible warning | VERIFIED (unit) |
 | No mock presented as live | `peyva:chat` exits 2 without config; the scripted LLM and fake servers live only in `test/support/` | VERIFIED |
+
+### 4.1 Live chat 1: Groq `qwen/qwen3.8-27b`, 13:58–14:16 UTC (`evidence/phase2a/chat-live-1-groq-qwen.jsonl`)
+
+| User | What happened | Verdict |
+|---|---|---|
+| «میخوام یه سفر سه شنبه به کیسش برم» (typos) | did not guess the city; asked whether «کیسش» meant Qeshm or Kish | correct |
+| «کیش», «tehran» | merged destination and origin; did not ask again | correct |
+| «می‌خوام یه سفر سه شبه به کیش برم» | `nights: 3` recorded; the reply still asked "which Tuesday" (it kept the earlier «سه شنبه» reading) | goal correct, reply slightly off |
+| «تهران، یک نفر، بودجه ۳۰ میلیون» | adults 1, budget 30,000,000 Toman (unit disclosed), rooms derived | correct |
+| «۱۹ آذر ۱۴۰۵» | **the LLM sent Jalali month 11 (Bahman)**, so the app searched 2027-02-08 → 02-11. MrBilit listed nothing (empty, not an error). The reply said «۱۹ آذر … پیدا نشد», mismatching the searched dates. The app's own table showed the real (Bahman) dates | **BUG** |
+| «فقط هتل چهار ستاره به بالا باشه» | `minimumHotelStars` set; fresh cached results reused (no new provider calls) | correct |
+| «اگه قیمت مناسب شد بهم خبر بده» | said clearly that monitoring is not available yet; the app added its notice; no false claim | correct |
+
+Provider calls: 4 (2 flights, lookup, hotels), all ok. LLM errors: 0. Iterations per turn: 2–3.
+
+**Root cause:** the design left one piece of calendar work to the LLM: month name → number. The prompt even listed only
+«فروردین=1 … اسفند=12». **Fix (deterministic, 3 layers):**
+1. Dates and months are now sent as the user's own words (`{"text": "۱۹ آذر ۱۴۰۵"}`) and parsed by code (`parseDayText`, `parseMonthText`).
+2. If the LLM still sends a number-based date that contradicts a month named in the user's message, the call is **rejected** with
+   "month mismatch" (`monthMismatch`), so the model must retry.
+3. A reply that names a Jalali month that was not searched gets a visible warning (`unverifiedMonths`). Also, the compare result
+   now carries `datesFa` for the model to quote.
+
+The regression test in `test/date-text.test.ts` replays the live sequence: the wrong call is rejected, the text retry searches 2026-12-10,
+and the total is 25,114,300.
 
 Executed on the developer machine (Omarchy, 2026-11-20):
 - `bun run peyva:tools-check` ×2: 8/8 provider calls ok, latencies 0.6–3.5 s, total 25,114,300 Toman, exit 0.
@@ -139,6 +165,7 @@ Session logs (JSONL, git-ignored): `output/sessions/`.
 - MrBilit only. Flights are domestic one-way legs. Hotels price one room for the whole stay, and room counts > 1 assume identical rooms.
 - Flexible dates check at most 3 departure days, which is explicitly stated. No price-calendar optimisation.
 - Relative dates: today, tomorrow, the day after, and "in N days". "Next week" / "weekend" are not resolved yet; the LLM must ask.
+- Month detection in free text treats «دی», «می», «مه» as months only next to a number or after «ماه».
 - The price guard is a heuristic (figures ≥ 100,000; 0.5% tolerance). The action guard is a Persian regex. Both warn; they don't block.
 - The quality of Persian understanding depends on the chosen model and has not been measured.
 - Session state is in memory only. Monitoring requests are recorded in the session and answered with an explicit "not implemented".
@@ -146,7 +173,8 @@ Session logs (JSONL, git-ignored): `output/sessions/`.
 
 ## 8. Remaining risks
 
-1. **No live LLM run yet.** The biggest open question is whether a real model follows the "report as stated" contract in Persian.
+1. **LLM contract compliance.** The live run showed a real model can break the "report as stated" contract (month mapping). The guards catch
+   that case now, but other silent misreadings (e.g. wrong day or year) are only caught when they contradict the user's words.
 2. Single unofficial provider; FlyToday is unreachable; license is educational-use only (see the readiness report).
 3. Model behaviour drift: tool-calling quality differs between providers and models behind the same API shape.
 4. Cost and latency: up to 6 LLM calls per message, plus about 10 s of provider searches for a full comparison.

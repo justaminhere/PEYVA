@@ -15,6 +15,16 @@ export function unverifiedPrices(text: string, allowed: Set<number>): number[] {
   return found;
 }
 
+import { monthNamesIn } from "../goal/dates.ts";
+
+/** Jalali months named in the reply that are not months of any date the app actually searched or holds. */
+export function unverifiedMonths(text: string, isoDates: string[], toJalaliMonth: (iso: string) => number): string[] {
+  if (!isoDates.length) return [];
+  const allowed = new Set(isoDates.map(toJalaliMonth));
+  return monthNamesIn(text).filter((m) => m.calendar === "jalali" && !allowed.has(m.month)).map((m) => m.name);
+}
+export const DATE_WARNING = "⚠ ماهی که در متن بالا آمده با تاریخ‌های جست‌وجوشده یکی نیست؛ تاریخ‌های جدول معتبرند.";
+
 const ACTION_CLAIM = /(رزرو\s*(شد|کردم|کردیم|انجام شد)|بلیط(ت)?\s*(رو|را)?\s*(خریدم|گرفتم)|پرداخت\s*(شد|کردم|انجام)|یادآور(ی)?\s*.*(ساختم|تنظیم کردم|گذاشتم)|(پایش|مانیتور).*(فعال|شروع)\s*(شد|کردم))/;
 
 export function claimsUnauthorizedAction(text: string): boolean {

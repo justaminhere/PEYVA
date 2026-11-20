@@ -16,6 +16,12 @@ export class Session {
   monitoringNoticeShown = false;
   constructor(readonly provider: TravelSearchProvider, readonly now: () => Date = () => new Date()) {}
 
+  /** The latest user message (used to cross-check what the LLM reports). */
+  lastUserText(): string {
+    for (let i = this.messages.length - 1; i >= 0; i--) { const m = this.messages[i]!; if (m.role === "user") return m.content; }
+    return "";
+  }
+
   goalSummary() {
     const g = this.goal;
     return {

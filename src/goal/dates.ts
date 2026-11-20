@@ -61,8 +61,11 @@ export function formatJalaliFa(iso: string): string {
 export type Calendar = "jalali" | "gregorian";
 export type DayExpr =
   | { calendar: Calendar; year?: number | null; month: number; day: number }
-  | { relative: "today" | "tomorrow" | "day_after_tomorrow" | "in_days"; days?: number | null };
-export type MonthExpr = { calendar: Calendar; year?: number | null; month: number };
+  | { relative: "today" | "tomorrow" | "day_after_tomorrow" | "in_days"; days?: number | null }
+  | { text: string };
+export type MonthExpr = { calendar: Calendar; year?: number | null; month: number } | { text: string };
+type StructDay = Exclude<DayExpr, { text: string }>;
+type StructMonth = Exclude<MonthExpr, { text: string }>;
 
 export interface Resolved<T> {
   value: T | null;
@@ -72,7 +75,10 @@ export interface Resolved<T> {
 }
 
 /** Resolves a day expression to a Gregorian ISO date. A missing year becomes the next occurrence and is flagged. */
-export function resolveDay(e: DayExpr, now: Date): Resolved<string> {
+export function resolveDay(input: DayExpr, now: Date): Resolved<string> {
+  const parsed = "text" in input ? parseDayText(input.text) : input;
+  if (!parsed || "text" in parsed) return { value: null, assumption: null, error: `could not read a date in "${("text" in input ? input.text : "").slice(0, 40)}"` };
+  const e: StructDay = parsed;
   const today = todayInTehran(now);
   if ("relative" in e) {
     const n = e.relative === "today" ? 0 : e.relative === "tomorrow" ? 1 : e.relative === "day_after_tomorrow" ? 2 : e.days ?? NaN;
@@ -99,7 +105,10 @@ export function resolveDay(e: DayExpr, now: Date): Resolved<string> {
 }
 
 /** A whole month as an ISO window (from today if the month has already started). */
-export function resolveMonth(e: MonthExpr, now: Date): Resolved<{ from: string; to: string }> {
+export function resolveMonth(input: MonthExpr, now: Date): Resolved<{ from: string; to: string }> {
+  const parsed = "text" in input ? parseMonthText(input.text) : input;
+  if (!parsed || "text" in parsed) return { value: null, assumption: null, error: `could not read a month in "${("text" in input ? input.text : "").slice(0, 40)}"` };
+  const e: StructMonth = parsed;
   if (e.month < 1 || e.month > 12) return { value: null, assumption: null, error: "month must be 1..12" };
   const today = todayInTehran(now);
   const window = (y: number) => {
@@ -128,4 +137,70 @@ export function resolveMonth(e: MonthExpr, now: Date): Resolved<{ from: string; 
     }
   }
   return { value: null, assumption: null, error: "invalid month" };
+}
+
+// ---- deterministic parsing of the user's own date words ----
+
+const J_MONTHS: [string, number][] = [
+  ["فروردین", 1], ["اردیبهشت", 2], ["اردی بهشت", 2], ["خرداد", 3], ["تیر", 4], ["امرداد", 5], ["مرداد", 5], ["شهریور", 6],
+  ["مهر", 7], ["آبان", 8], ["ابان", 8], ["آذر", 9], ["اذر", 9], ["دی", 10], ["بهمن", 11], ["اسفند", 12],
+];
+const G_MONTHS: [string, number][] = [
+  ["ژانویه", 1], ["ژانویهٔ", 1], ["فوریه", 2], ["مارس", 3], ["آوریل", 4], ["آپریل", 4], ["مه", 5], ["می", 5], ["ژوئن", 6], ["جون", 6],
+  ["ژوئیه", 7], ["جولای", 7], ["اوت", 8], ["آگوست", 8], ["سپتامبر", 9], ["اکتبر", 10], ["نوامبر", 11], ["دسامبر", 12],
+];
+
+function norm(s: string): string {
+  return s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, " ").replace(/\s+/g, " ").trim();
+}
+const word = (name: string) => new RegExp(`(^|[^\\p{L}])${name}(?=$|[^\\p{L}])`, "u");
+
+/** Month names (Jalali or Gregorian) that appear in a text, for consistency checks. */
+export function monthNamesIn(text: string): { calendar: Calendar; month: number; name: string }[] {
+  const t = norm(text);
+  const out: { calendar: Calendar; month: number; name: string }[] = [];
+  // "دی" and "می"/"مه" are also common words; only count them next to a number ("۱۰ دی", "دی ۱۴۰۵", "ماه دی").
+  const risky = new Set(["دی", "می", "مه"]);
+  for (const [cal, list] of [["jalali", J_MONTHS], ["gregorian", G_MONTHS]] as const)
+    for (const [name, month] of list) {
+      const hit = risky.has(name) ? new RegExp(`(\\d\\s*${name}(?=$|[^\\p{L}])|(^|[^\\p{L}])${name}\\s*\\d|ماه\\s+${name}(?=$|[^\\p{L}]))`, "u").test(t) : word(name).test(t);
+      if (hit && !out.some((o) => o.calendar === cal && o.month === month)) out.push({ calendar: cal, month, name });
+    }
+  return out;
+}
+
+/**
+ * Parses the user's date words into a DayExpr: "۱۹ آذر ۱۴۰۵", "۱۹ آذر", "1405/09/19", "2026-12-10",
+ * "۱۰ دسامبر ۲۰۲۶", "فردا", "پس‌فردا", "امروز", "۳ روز دیگه". Returns null when it is not a single day.
+ */
+export function parseDayText(text: string): StructDay | null {
+  const t = norm(text);
+  if (/^امروز$/.test(t)) return { relative: "today" };
+  if (/^پس ?فردا$/.test(t)) return { relative: "day_after_tomorrow" };
+  if (/^فردا$/.test(t)) return { relative: "tomorrow" };
+  let m = t.match(/^(\d+) روز (دیگه|دیگر|بعد)$/);
+  if (m) return { relative: "in_days", days: Number(m[1]) };
+  m = t.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (m) {
+    const y = Number(m[1]);
+    return { calendar: y < 1700 ? "jalali" : "gregorian", year: y, month: Number(m[2]), day: Number(m[3]) };
+  }
+  for (const [cal, list] of [["jalali", J_MONTHS], ["gregorian", G_MONTHS]] as const)
+    for (const [name, month] of list) {
+      m = t.match(new RegExp(`^(\\d{1,2})(?:ام|م)? ${name}(?: ماه)?(?: (?:سال )?(\\d{4}))?$`, "u"));
+      if (m) return { calendar: cal, month, day: Number(m[1]), year: m[2] ? Number(m[2]) : null };
+    }
+  return null;
+}
+
+/** "دی", "ماه دی", "دی ۱۴۰۵", "دسامبر" -> MonthExpr */
+export function parseMonthText(text: string): StructMonth | null {
+  const t = norm(text).replace(/^ماه /, "");
+  for (const [cal, list] of [["jalali", J_MONTHS], ["gregorian", G_MONTHS]] as const)
+    for (const [name, month] of list) {
+      const m = t.match(new RegExp(`^${name}(?: (?:ماه )?(?:سال )?(\\d{4}))?$`, "u"));
+      if (m) return { calendar: cal, month, year: m[1] ? Number(m[1]) : null };
+    }
+  return null;
 }

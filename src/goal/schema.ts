@@ -9,10 +9,14 @@ import { z } from "zod";
 
 const Calendar = z.enum(["jalali", "gregorian"]);
 export const DayExprSchema = z.union([
+  z.object({ text: z.string().min(1).max(40).describe("PREFERRED: the user's exact date words, e.g. '۱۹ آذر ۱۴۰۵', '۱۰ دی', 'فردا'") }).strict(),
   z.object({ calendar: Calendar, year: z.number().int().min(1300).max(2100).nullish(), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31) }).strict(),
   z.object({ relative: z.enum(["today", "tomorrow", "day_after_tomorrow", "in_days"]), days: z.number().int().min(0).max(365).nullish() }).strict(),
 ]);
-export const MonthExprSchema = z.object({ calendar: Calendar, year: z.number().int().min(1300).max(2100).nullish(), month: z.number().int().min(1).max(12) }).strict();
+export const MonthExprSchema = z.union([
+  z.object({ text: z.string().min(1).max(30).describe("PREFERRED: the user's month words, e.g. 'دی' or 'دی ۱۴۰۵'") }).strict(),
+  z.object({ calendar: Calendar, year: z.number().int().min(1300).max(2100).nullish(), month: z.number().int().min(1).max(12) }).strict(),
+]);
 
 export const IntentSchema = z.enum(["trip", "flight_only", "hotel_only", "unknown"]);
 

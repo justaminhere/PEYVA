@@ -7,7 +7,8 @@ import { TOOL_SPECS, ToolRunner, type ToolEvent } from "./tools.ts";
 import { systemPrompt } from "./prompt.ts";
 import type { Session } from "./session.ts";
 import { allowedPrices } from "../compare/engine.ts";
-import { ACTION_WARNING, MONITORING_NOTICE, PRICE_WARNING, claimsUnauthorizedAction, unverifiedPrices } from "./guards.ts";
+import { ACTION_WARNING, DATE_WARNING, MONITORING_NOTICE, PRICE_WARNING, claimsUnauthorizedAction, unverifiedMonths, unverifiedPrices } from "./guards.ts";
+import { gregorianToJalali } from "../goal/dates.ts";
 
 export const MAX_ITERATIONS = 6;
 export const MAX_TOOL_CALLS_PER_TURN = 12;
@@ -77,6 +78,12 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string): Pro
       for (const it of r.items ?? []) if (it.totalPrice) allowed.add(it.totalPrice);
     if (unverifiedPrices(reply, allowed).length) warnings.push(PRICE_WARNING);
     if (claimsUnauthorizedAction(reply)) warnings.push(ACTION_WARNING);
+    const d = s.goal.dates;
+    const known = [d.departure, d.return, d.window?.from, d.window?.to,
+      ...(s.lastComparison?.results.flatMap((c) => [c.candidate.departure, c.candidate.return]) ?? [])].filter((x): x is string => !!x);
+    // A window spans months: allow every month between its ends.
+    if (d.window) for (let x = d.window.from; x <= d.window.to; x = new Date(Date.parse(x) + 86_400_000 * 10).toISOString().slice(0, 10)) known.push(x);
+    if (unverifiedMonths(reply, known, (iso) => gregorianToJalali(iso).jm).length) warnings.push(DATE_WARNING);
     if (s.goal.monitoringRequested && !s.monitoringNoticeShown) { warnings.push(MONITORING_NOTICE); s.monitoringNoticeShown = true; }
     return done({ reply, events, newComparison: s.lastComparison?.at !== compareBefore, warnings, llmError: null, iterations: i });
   }

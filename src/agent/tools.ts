@@ -6,7 +6,8 @@
 import { z } from "zod";
 import { DayExprSchema, GoalPatchSchema } from "../goal/schema.ts";
 import { analyze, applyPatch, type SearchCandidate } from "../goal/state.ts";
-import { resolveDay } from "../goal/dates.ts";
+import { formatJalaliFa, monthNamesIn, resolveDay } from "../goal/dates.ts";
+import type { GoalPatch } from "../goal/schema.ts";
 import { findCity } from "../travel/places.ts";
 import { bestOverall, compareCandidate, type CandidateComparison } from "../compare/engine.ts";
 import { isFresh, validateFlightQuery, validateHotelQuery, type FlightQuery, type HotelQuery, type NormalizedFlight, type NormalizedHotel, type SearchResult } from "../travel/index.ts";
@@ -59,6 +60,26 @@ function parseArgs<T>(schema: z.ZodType<T>, raw: string): { ok: true; value: T }
   try { json = raw.trim() ? JSON.parse(raw) : {}; } catch { return { ok: false, reason: "arguments are not valid JSON" }; }
   const r = schema.safeParse(json);
   return r.success ? { ok: true, value: r.data } : { ok: false, reason: "invalid arguments: " + r.error.issues.slice(0, 5).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ") };
+}
+
+/**
+ * Cross-check: if the user's message names a month, every structured (number-based) date the LLM reports must use
+ * one of those months. Catches e.g. "۱۹ آذر" reported as month 11 (Bahman). Text dates are parsed by code and pass.
+ */
+export function monthMismatch(patchDates: unknown[], userText: string): string | null {
+  const named = monthNamesIn(userText);
+  if (!named.length) return null;
+  for (const d of patchDates) {
+    if (!d || typeof d !== "object" || "text" in d || "relative" in d) continue;
+    const { calendar, month } = d as { calendar: "jalali" | "gregorian"; month: number };
+    if (!named.some((n) => n.calendar === calendar && n.month === month))
+      return `month mismatch: the user wrote ${named.map((n) => `${n.name} (${n.calendar} month ${n.month})`).join(", ")} but the call says ${calendar} month ${month}. Send the date as {"text": "<the user's exact words>"} instead.`;
+  }
+  return null;
+}
+
+function patchDates(p: GoalPatch): unknown[] {
+  return [p.departureDate, p.returnDate, p.dateWindow?.from, p.dateWindow?.to, p.month].filter(Boolean);
 }
 
 function resolveStrict(e: z.infer<typeof DayExprSchema>, now: Date): { iso: string } | { reason: string } {
@@ -116,6 +137,8 @@ export class ToolRunner {
       case "update_trip_goal": {
         const p = parseArgs(GoalPatchSchema, rawArgs);
         if (!p.ok) return err(name, p.reason);
+        const mm = monthMismatch(patchDates(p.value), this.s.lastUserText());
+        if (mm) return err(name, mm);
         this.s.goal = applyPatch(this.s.goal, p.value, now);
         const a = analyze(this.s.goal, now);
         events.push({ type: "goal_updated", missing: a.missing, ready: a.ready });
@@ -124,6 +147,8 @@ export class ToolRunner {
       case "search_flights": {
         const p = parseArgs(SearchFlightsArgs, rawArgs);
         if (!p.ok) return err(name, p.reason);
+        const mmf = monthMismatch([p.value.date], this.s.lastUserText());
+        if (mmf) return err(name, mmf);
         const o = findCity(p.value.origin), d = findCity(p.value.destination);
         if (!o || !d) return err(name, `unknown city: ${!o ? p.value.origin : p.value.destination}`);
         const date = resolveStrict(p.value.date, now);
@@ -138,6 +163,8 @@ export class ToolRunner {
       case "search_hotels": {
         const p = parseArgs(SearchHotelsArgs, rawArgs);
         if (!p.ok) return err(name, p.reason);
+        const mmh = monthMismatch([p.value.checkIn, p.value.checkOut], this.s.lastUserText());
+        if (mmh) return err(name, mmh);
         const c = findCity(p.value.city);
         if (!c) return err(name, `unknown city: ${p.value.city}`);
         const ci = resolveStrict(p.value.checkIn, now), co = resolveStrict(p.value.checkOut, now);
@@ -163,7 +190,8 @@ export class ToolRunner {
           ok: true, planNote: a.planNote, disclosures: a.disclosures, blocked: this.s.blocked,
           note: "The app shows the full comparison table to the user. Refer to options by number; do not restate or compute prices.",
           best: best && { candidate: best.candidateIndex + 1, totalToman: best.option.totalToman, withinBudget: best.option.withinBudget },
-          candidates: results.map((c, i) => ({ n: i + 1, dates: c.candidate, status: c.status, reasons: c.reasons, stale: c.stale, options: c.options.length,
+          candidates: results.map((c, i) => ({ n: i + 1, dates: c.candidate,
+            datesFa: `${formatJalaliFa(c.candidate.departure)} تا ${formatJalaliFa(c.candidate.return)}`, status: c.status, reasons: c.reasons, stale: c.stale, options: c.options.length,
             cheapest: c.options[0] && fence({ totalToman: c.options[0].totalToman, withinBudget: c.options[0].withinBudget,
               hotel: c.options[0].hotel && cleanText(c.options[0].hotel.name, 60), airline: c.options[0].outbound && cleanText(c.options[0].outbound.airline, 40) }) })),
         }) };
