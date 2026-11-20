@@ -1,9 +1,10 @@
 # PEYVA Phase 2A: Conversational Agent Core
 
 - **Date:** 2026-11-20
-- **Status: PARTIAL.** The agent core is implemented and tested. The tool layer is **VERIFIED live** against MrBilit on the
-  developer machine (§4). A first live chat with a real LLM (Groq, `qwen/qwen3.8-27b`) ran 8 turns and **found a date bug**, now fixed
-  (§4.1). A rerun with the fix is needed before the status can become COMPLETE.
+- **Status: COMPLETE (Definition of Done met live), with known reliability limits.** Live chat 2 (Groq `qwen/qwen3.8-27b` + MrBilit,
+  §4.2) went end to end: Persian request → clarification → validated goal → real searches → deterministic packages
+  (25,114,300 and, with ≥4★, 28,681,300 Toman, both re-checked by hand) → Persian table and reply. Chats 1 and 2 also exposed LLM
+  extraction errors. The guards added after chat 2 are covered by replay tests, but they **have not been exercised in a live run yet**.
 
 ## 1. What was built
 
@@ -77,7 +78,7 @@ change: `FlightQuery.children` (optional, passed to the provider so `total_toman
 
 | Item | Evidence | Status |
 |---|---|---|
-| Persian goal extraction **by a real LLM** | live chat 1 (§4.1): understood Persian, clarified, merged context, no invented values; **one wrong month mapping** | **PARTIAL**: fix needs a live rerun |
+| Persian goal extraction **by a real LLM** | live chats 1–2 (§4.1–4.2): Persian understood and clarified; real searches with the right dates in chat 2. Errors seen live: month mapping (fixed), dropped budget/travellers, invented rooms, self-confirmation (now cross-checked) | **VERIFIED live, with errors**; post-chat-2 guards verified by replay only |
 | Multi-turn clarification + merge | `test/agent.test.ts` (the spec's 3-turn dialogue), `test/goal-state.test.ts` | VERIFIED (scripted LLM) |
 | Goal validated before any tool runs | compare before ready → rejected, 0 provider calls; 6 kinds of invalid tool calls rejected, 0 provider calls | VERIFIED (unit) |
 | Uses the existing real MCP integration | `bun run peyva:tools-check` on Omarchy, 13:49 and 13:50 UTC: 8/8 MrBilit calls ok (`evidence/phase2a/`) | **VERIFIED live** |
@@ -113,6 +114,33 @@ Provider calls: 4 (2 flights, lookup, hotels), all ok. LLM errors: 0. Iterations
 
 The regression test in `test/date-text.test.ts` replays the live sequence: the wrong call is rejected, the text retry searches 2026-12-10,
 and the total is 25,114,300.
+
+### 4.2 Live chat 2: same model, after the date fix, 14:21–14:41 UTC (`evidence/phase2a/chat-live-2-groq-qwen.jsonl`)
+
+| User | LLM call(s) | Outcome | Verdict |
+|---|---|---|---|
+| «می‌خوام یه سفر سه شبه به کیش برم» | `{"destination":"کیش","nights":3}` | asked for the origin | correct |
+| «تهران، یک نفر، بودجه ۳۰ میلیون» | Groq **HTTP 400**: the model called `updateTripGoal` (not a defined tool) | honest error line; the user had to resend | provider-side tool validation |
+| same, resent | `{"origin":"تهران","preferences":["یک نفر"],"rooms":1}` | **budget dropped, travellers put in preferences, rooms invented** | **extraction error** |
+| «۱۹ آذر ۱۴۰۵» | `{"departureDate":{"text":"۱۹ آذر ۱۴۰۵"}}` → 2026-12-10 | **date fix works**. The reply asked an unnecessary "do I understand correctly?" and mentioned Aban (today), which triggered a false date warning | correct date; guard false positive |
+| «من این تاریخ میخوام برم 19 آذر» | `{"text":"19 آذر"}` | the same date again, but recorded as a new "assumed year" | over-cautious |
+| «یک نفر بزرگ سال بودجه هم 200 ملیون تومن» | `{"adults":1,"budgetText":"200 ملیون تومن","confirmAssumptions":true}`, then `compare_trip_options` | real search: 5 + 6 flights, 20 hotels → **25,114,300 Toman**, within budget. The model **self-confirmed** the year without the user saying yes | correct result; self-confirmation |
+| «فقط هتل چهار ستاره به بالا باشه» | `{"minimumHotelStars":4}`, compare | fresh cached results reused → **28,681,300** (= 10,594,200 + 10,794,100 + Sadaf 4★ 7,293,000) | correct |
+| «اگه قیمت مناسب شد بهم خبر بده» | none | said honestly that monitoring is not available, but **did not record the wish** (so no app notice) | partly correct |
+
+Provider calls 4/4 ok. Turn durations were **16–151 s**, mostly LLM time (provider searches ≈ 7 s total). The cause (reasoning tokens vs
+rate-limit retries) was not logged; per-request latency and token usage are now logged (`llmCalls`).
+
+**Fixes after chat 2** (deterministic, replayed in `test/live-replay-2.test.ts`):
+- **Cross-check against the user's own words** (`src/goal/signals.ts`, `crossCheckPatch`):
+  - Rooms, stars, nights or a budget the user never mentioned are dropped.
+  - Travellers, budget, stars, nights or a monitoring wish that the user mentioned but the LLM left out go back to the LLM as
+    `mentionedButNotRecorded`; if still missing after the turn, the user sees a warning.
+  - `confirmAssumptions` is accepted only after an explicit yes.
+- **One automatic retry** after a provider-side tool-call validation error (Groq 400), with a transient correction message.
+- **Re-stating a date that is already in the goal** adds no new assumption.
+- **Monitoring wish detected in the user's words** → the flag is set by the app and the notice is shown.
+- **Today's month** no longer triggers the date warning.
 
 Executed on the developer machine (Omarchy, 2026-11-20):
 - `bun run peyva:tools-check` ×2: 8/8 provider calls ok, latencies 0.6–3.5 s, total 25,114,300 Toman, exit 0.
@@ -173,7 +201,7 @@ Session logs (JSONL, git-ignored): `output/sessions/`.
 
 ## 8. Remaining risks
 
-1. **LLM contract compliance.** The live run showed a real model can break the "report as stated" contract (month mapping). The guards catch
+1. **LLM contract compliance.** The live runs showed a real model can break the "report as stated" contract (month mapping). The guards catch
    that case now, but other silent misreadings (e.g. wrong day or year) are only caught when they contradict the user's words.
 2. Single unofficial provider; FlyToday is unreachable; license is educational-use only (see the readiness report).
 3. Model behaviour drift: tool-calling quality differs between providers and models behind the same API shape.
@@ -181,9 +209,10 @@ Session logs (JSONL, git-ignored): `output/sessions/`.
 
 ## 9. Recommendation for Phase 2B
 
-Close Phase 2A first: set a key and run `bun run peyva:chat` with 5 of the spec's Persian test sentences. Keep the transcripts in
-`output/sessions/` and promote 2–3 sanitized ones to `evidence/` as the first live LLM evidence. Then, for Phase 2B:
-1. A small evaluation set: 20 Persian requests with the expected `GoalPatch`, run against the configured model and scored deterministically.
+The two live chats show that the model, not the code, is now the weakest link: 4 of 14 extraction calls were wrong or incomplete.
+Before adding Hono, a database or a UI, measure and improve that:
+
+1. **Live re-run of the post-chat-2 guards** (one chat), then a small evaluation set: 20 Persian requests with the expected `GoalPatch`, run against the configured model and scored deterministically.
 2. Hono `/chat` (SSE) over the same `runTurn`.
 3. Postgres + Drizzle for sessions and `tool_calls` audit.
 4. A React chat that renders the engine's table as cards.

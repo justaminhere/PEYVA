@@ -26,7 +26,8 @@ export class OpenAICompatibleClient implements LlmClient {
       if (!choice?.message) return { ok: false, cause: "malformed", message: "response has no message" };
       const calls = (choice.message.tool_calls ?? []).flatMap((c) =>
         c.type === "function" ? [{ id: c.id, name: c.function.name, arguments: c.function.arguments ?? "" }] : []);
-      return { ok: true, text: choice.message.content ?? null, toolCalls: calls, finishReason: choice.finish_reason ?? null, model: res.model ?? null };
+      return { ok: true, text: choice.message.content ?? null, toolCalls: calls, finishReason: choice.finish_reason ?? null, model: res.model ?? null,
+        usage: { prompt: res.usage?.prompt_tokens ?? null, completion: res.usage?.completion_tokens ?? null } };
     } catch (e) {
       return mapError(e);
     }

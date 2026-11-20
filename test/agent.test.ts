@@ -118,7 +118,7 @@ test("price guard flags numbers the tools never produced", async () => {
     tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
     tools(call("compare_trip_options", {})),
   ];
-  const ok = await runTurn(s, new ScriptedLlm([...go, say("جمع گزینه ۱: ۲۵٬۱۱۴٬۳۰۰ تومان")]), "…");
+  const ok = await runTurn(s, new ScriptedLlm([...go, say("جمع گزینه ۱: ۲۵٬۱۱۴٬۳۰۰ تومان")]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
   expect(ok.warnings).not.toContain(PRICE_WARNING);
   const bad = await runTurn(s, new ScriptedLlm([say("می‌تونی با ۹۹ میلیون تومان بری!")]), "ارزون‌تر؟");
   expect(bad.warnings).toContain(PRICE_WARNING);
@@ -129,7 +129,7 @@ test("stale results are re-searched; fresh ones are reused", async () => {
   const p = new RecordedProvider(now);
   const s = new Session(p, now);
   const ready = tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } }));
-  await runTurn(s, new ScriptedLlm([ready, tools(call("compare_trip_options", {})), say("…")]), "…");
+  await runTurn(s, new ScriptedLlm([ready, tools(call("compare_trip_options", {})), say("…")]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
   expect(p.calls.length).toBe(3);
   clock = new Date("2026-11-20T10:10:00Z");
   await runTurn(s, new ScriptedLlm([tools(call("compare_trip_options", {})), say("…")]), "دوباره");
@@ -147,7 +147,7 @@ test("provider access problems stop further searches (no hammering)", async () =
   await runTurn(s, new ScriptedLlm([
     tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, departureDate: { calendar: "jalali", year: 1405, month: 9, day: 19 } })),
     tools(call("compare_trip_options", {})), say("…"),
-  ]), "…");
+  ]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، یک نفر");
   expect(p.calls).toEqual(["F:THR-KIH-2026-12-10"]);
   expect(s.blocked).toContain("network_or_geo_block");
   expect(s.lastComparison!.results[0]!.status).toBe("incomplete");
@@ -162,7 +162,7 @@ test("flexible range: bounded candidates, year confirmation required first", asy
     tools(call("update_trip_goal", { intent: "trip", origin: "تهران", destination: "کیش", adults: 1, nights: 3, datesFlexible: true,
       dateWindow: { from: { calendar: "jalali", month: 10, day: 10 }, to: { calendar: "jalali", month: 10, day: 20 } } })),
     tools(call("compare_trip_options", {})), say("منظورت دی ۱۴۰۵ است؟"),
-  ]), "بین ۱۰ تا ۲۰ دی، هر تاریخی");
+  ]), "تهران به کیش، سه شب، یک نفر، بین ۱۰ تا ۲۰ دی، هر تاریخی");
   expect(lastTool(s).pendingAssumptions[0]).toContain("۱۴۰۵");
   expect(p.calls).toEqual([]);
   await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", { confirmAssumptions: true })), tools(call("compare_trip_options", {})), say("…")]), "آره");

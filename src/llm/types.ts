@@ -12,7 +12,7 @@ export interface ToolSpec { name: string; description: string; parameters: Recor
 export type LlmErrorCause = "config" | "auth" | "rate_limit" | "timeout" | "network" | "bad_request" | "malformed" | "provider";
 
 export type LlmResponse =
-  | { ok: true; text: string | null; toolCalls: ToolCall[]; finishReason: string | null; model: string | null }
+  | { ok: true; text: string | null; toolCalls: ToolCall[]; finishReason: string | null; model: string | null; usage?: { prompt: number | null; completion: number | null } }
   | { ok: false; cause: LlmErrorCause; message: string };
 
 export interface LlmClient {

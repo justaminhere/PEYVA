@@ -14,9 +14,12 @@ function place(input: string): Place {
 export function applyPatch(prev: TripGoal, patch: GoalPatch, now: Date): TripGoal {
   const g: TripGoal = structuredClone(prev);
   g.invalid = [];
+  const known = new Set([prev.dates.departure, prev.dates.return, prev.dates.window?.from, prev.dates.window?.to].filter(Boolean));
   const take = <T>(label: string, r: Resolved<T>): T | null => {
     if (r.error) g.invalid.push(`${label}: ${r.error}`);
-    if (r.assumption && !g.pendingAssumptions.includes(r.assumption)) g.pendingAssumptions.push(r.assumption);
+    // Re-stating a date that is already in the goal (e.g. "19 Azar" after "19 Azar 1405") needs no new confirmation.
+    const same = typeof r.value === "string" ? known.has(r.value) : r.value && typeof r.value === "object" && "from" in r.value ? known.has((r.value as { from: string }).from) : false;
+    if (r.assumption && !same && !g.pendingAssumptions.includes(r.assumption)) g.pendingAssumptions.push(r.assumption);
     return r.value;
   };
   if (patch.confirmAssumptions) g.pendingAssumptions = [];

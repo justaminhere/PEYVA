@@ -7,7 +7,34 @@ import { z } from "zod";
 import { DayExprSchema, GoalPatchSchema } from "../goal/schema.ts";
 import { analyze, applyPatch, type SearchCandidate } from "../goal/state.ts";
 import { formatJalaliFa, monthNamesIn, resolveDay } from "../goal/dates.ts";
-import type { GoalPatch } from "../goal/schema.ts";
+import type { GoalPatch, TripGoal } from "../goal/schema.ts";
+import { signalsIn, type Signals } from "../goal/signals.ts";
+import { parseAmount, toToman } from "../goal/persian.ts";
+
+/**
+ * Checks the LLM's patch against the user's own words. Returns a cleaned patch (fields the user never mentioned are
+ * removed), what was dropped, and details the user mentioned that are still not recorded.
+ */
+export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGoal): { patch: GoalPatch; dropped: string[]; unrecorded: string[]; signals: Signals } {
+  const sig = signalsIn(userText);
+  const p: GoalPatch = { ...patch };
+  const dropped: string[] = [];
+  if (p.rooms !== undefined && !sig.mentionsRooms) { delete p.rooms; dropped.push("rooms: the user did not mention rooms"); }
+  if (p.minimumHotelStars !== undefined && sig.stars === null) { delete p.minimumHotelStars; dropped.push("minimumHotelStars: the user did not mention stars"); }
+  if (p.nights !== undefined && sig.nights === null && !/شب/u.test(userText)) { delete p.nights; dropped.push("nights: the user did not mention nights"); }
+  if (p.budgetText) {
+    const a = parseAmount(p.budgetText);
+    if (!a || sig.budgetToman === null || toToman(a).toman !== sig.budgetToman) { delete p.budgetText; delete p.budgetScope; dropped.push(`budgetText: "${p.budgetText ?? patch.budgetText}" is not the amount in the user's words; copy it verbatim`); }
+  }
+  if (p.confirmAssumptions && !sig.affirmation) { delete p.confirmAssumptions; dropped.push("confirmAssumptions: the user has not said yes; ask them to confirm"); }
+  const unrecorded: string[] = [];
+  if (sig.travellers !== null && p.adults === undefined && goal.adults !== sig.travellers) unrecorded.push(`travellers: the user said ${sig.travellers} (set adults/children)`);
+  if (sig.budgetToman !== null && !p.budgetText && goal.budget?.toman !== sig.budgetToman) unrecorded.push("budget: the user named an amount (copy it into budgetText)");
+  if (sig.stars !== null && p.minimumHotelStars === undefined && goal.minimumHotelStars !== sig.stars) unrecorded.push(`minimumHotelStars: the user said ${sig.stars}`);
+  if (sig.nights !== null && p.nights === undefined && goal.dates.nights !== sig.nights) unrecorded.push(`nights: the user said ${sig.nights}`);
+  if (sig.monitoring && !p.monitoringRequested && !goal.monitoringRequested) unrecorded.push("monitoringRequested: the user asked to be told later");
+  return { patch: p, dropped, unrecorded, signals: sig };
+}
 import { findCity } from "../travel/places.ts";
 import { bestOverall, compareCandidate, type CandidateComparison } from "../compare/engine.ts";
 import { isFresh, validateFlightQuery, validateHotelQuery, type FlightQuery, type HotelQuery, type NormalizedFlight, type NormalizedHotel, type SearchResult } from "../travel/index.ts";
@@ -139,10 +166,14 @@ export class ToolRunner {
         if (!p.ok) return err(name, p.reason);
         const mm = monthMismatch(patchDates(p.value), this.s.lastUserText());
         if (mm) return err(name, mm);
-        this.s.goal = applyPatch(this.s.goal, p.value, now);
+        const cc = crossCheckPatch(p.value, this.s.lastUserText(), this.s.goal);
+        this.s.goal = applyPatch(this.s.goal, cc.patch, now);
+        const after = crossCheckPatch({}, this.s.lastUserText(), this.s.goal).unrecorded;
         const a = analyze(this.s.goal, now);
         events.push({ type: "goal_updated", missing: a.missing, ready: a.ready });
-        return { ok: true, events, content: JSON.stringify({ ok: true, goal: this.s.goalSummary(), analysis: a }) };
+        return { ok: true, events, content: JSON.stringify({ ok: true, goal: this.s.goalSummary(), analysis: a,
+          checks: { droppedBecauseUserDidNotSayIt: cc.dropped, mentionedButNotRecorded: after,
+            instruction: after.length ? "Call update_trip_goal again and include the mentionedButNotRecorded items, as stated by the user." : undefined } }) };
       }
       case "search_flights": {
         const p = parseArgs(SearchFlightsArgs, rawArgs);
