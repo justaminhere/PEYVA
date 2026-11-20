@@ -1,6 +1,6 @@
 # Phase 3: persistent memory, goals and monitoring
 
-Status: implemented and tested offline against a real PostgreSQL 18 and recorded MrBilit data. The live provider check from the development VM classified correctly as `PROVIDER_ERROR` because that VM's network blocks the provider. **Live on Omarchy (2026-11-20): `worker --once` against MrBilit returned `MATCH_FOUND` at 25,114,300 Toman after 3 searches. It stored an in-app alert and set the next check +6 h. Live Telegram delivery: NOT VERIFIED.**
+Status: implemented and tested offline against a real PostgreSQL 18 and recorded MrBilit data. The live provider check from the development VM classified correctly as `PROVIDER_ERROR` because that VM's network blocks the provider. **Live on Omarchy (2026-11-20): `worker --once` against MrBilit returned `MATCH_FOUND` at 25,114,300 Toman after 3 searches. It stored an in-app alert and set the next check +6 h. Live Telegram (2026-11-20, Omarchy): the bot was linked via `/start CODE`, and `telegram test` delivered through the outbox. The status was stored as `sent` after the Bot API confirmed, and the user confirmed the message arrived. Status: VERIFIED.**
 
 ## 1. Scope and mode
 
@@ -170,10 +170,9 @@ For a permanent worker on Linux, run `bun run peyva:worker` under a systemd user
 A smoke test on the dev VM used a real database, the goals CLI create → approve → list, and `worker --once` against live MrBilit. The worker recorded `PROVIDER_ERROR (network_or_geo_block)` with a 15-minute retry, and `show` displayed the last failure separately from the last success.
 
 **Known limits:**
-- Live Telegram delivery is not yet verified.
 - There is one provider (MrBilit) and one executor.
 - The hotel recordings used in tests cover only 3-night stays.
 - There is no authentication, by design (single-user).
 - The worker runs only while your machine is on.
 
-**Next:** run one live check and one live Telegram test on the Omarchy machine. Then decide whether a second executor or a second provider brings more learning value.
+**Next:** both live checks are done. Decide whether a second executor or a second provider brings more learning value. A real match alert over Telegram will happen naturally when the result changes.
