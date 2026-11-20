@@ -7,7 +7,7 @@
  *   (the message may or may not have arrived; a duplicate on the user's phone is possible).
  */
 import { tehranDateTime } from "../agent/confirm.ts";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
 import { appState, notifications, telegramLinkCodes, telegramLinks } from "../db/schema.ts";
@@ -149,6 +149,23 @@ export class NotificationService {
 
   private finish(id: number, set: Partial<typeof notifications.$inferInsert>) {
     return this.db.update(notifications).set(set).where(and(eq(notifications.id, id), eq(notifications.deliveryStatus, "sending")));
+  }
+
+  /**
+   * Explicit, user-requested live test of the whole Telegram path (outbox → Bot API → stored status).
+   * Returns the row as stored afterwards: "sent" only if Telegram answered ok.
+   */
+  async sendTest(userId: string): Promise<{ ok: false; reason: string } | { ok: true; row: typeof notifications.$inferSelect }> {
+    if (!this.telegram) return { ok: false, reason: "TELEGRAM_BOT_TOKEN is not set" };
+    const [link] = await this.db.select().from(telegramLinks).where(eq(telegramLinks.userId, userId));
+    if (!link) return { ok: false, reason: "Telegram is not linked (/telegram link, then /telegram verify)" };
+    const now = this.now();
+    const text = `🧪 پیوا: پیام آزمایشی اعلان‌ها\nاگر این را می‌بینی، مسیر اعلان تلگرام کار می‌کند.\nزمان: ${tehranDateTime(now)} (تهران)`;
+    const [row] = await this.db.insert(notifications).values({ userId, goalId: null, type: "test", channel: "telegram", payload: { text },
+      deliveryStatus: "pending", deduplicationKey: `test:${userId}:${now.getTime()}:${randomUUID()}`, nextAttemptAt: now, createdAt: now }).returning();
+    await this.deliverPending();
+    const [after] = await this.db.select().from(notifications).where(eq(notifications.id, row!.id));
+    return { ok: true, row: after! };
   }
 
   list(userId: string, limit = 20) {

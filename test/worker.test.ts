@@ -326,6 +326,28 @@ test("Telegram delivery: 'sent' only after Bot API confirms; failures recorded; 
   tg.stop();
 });
 
+test("/telegram test: refused until linked; 'sent' only on Bot API ok; failure stored honestly", async () => {
+  const { runCommand } = await import("../src/cli/commands.ts");
+  const tg = fakeTelegram(TOKEN);
+  const client = new TelegramClient(TOKEN, tg.url, 500);
+  const linker = new TelegramLinker(h.db, client, now);
+  const s = setup(new RecordedProvider(now), {}, client);
+  const ctx = { userId: "amin", goals: s.svc, registry: s.registry, prefs: null as never, notifications: s.notifier, linker };
+  expect((await runCommand(ctx, "/telegram test"))!.text).toContain("not linked");
+  const { code } = await linker.createCode("amin");
+  tg.userSends(999, `/start ${code}`);
+  await linker.verify("amin");
+  tg.state.sent.length = 0;
+  expect((await runCommand(ctx, "/telegram test"))!.text).toContain("تلگرام دریافت را تأیید کرد");
+  expect(tg.state.sent).toMatchObject([{ chat_id: 999 }]);
+  tg.state.sendMode = "forbidden";
+  const bad = (await runCommand(ctx, "/telegram test"))!.text;
+  expect(bad).toContain("وضعیت ذخیره‌شده: failed");
+  expect(bad).not.toContain(TOKEN);
+  await linker.unlink("amin");
+  tg.stop();
+});
+
 test("no Telegram client exists without a token; malformed tokens are refused", () => {
   expect(telegramFromEnv({})).toBeNull();
   expect(() => new TelegramClient("not-a-token")).toThrow();

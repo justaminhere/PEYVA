@@ -33,7 +33,7 @@ function goalLine(g: Goal) {
 export const HELP = [
   "/goals — هدف‌های پیگیری", "/goal N — جزئیات و آخرین بررسی", "/pause N · /resume N · /cancel N",
   "/budget N <مبلغ> — تغییر بودجه (نیاز به تأیید دوباره)", "/notifications — اعلان‌ها",
-  "/prefs · /pref set <key> <value> · /pref delete <key>", "/telegram link | verify | status | unlink",
+  "/prefs · /pref set <key> <value> · /pref delete <key>", "/telegram link | verify | status | test | unlink",
 ].join("\n");
 
 export async function runCommand(ctx: CommandContext, line: string): Promise<CommandResult | null> {
@@ -109,7 +109,15 @@ export async function runCommand(ctx: CommandContext, line: string): Promise<Com
       if (sub === "verify") { const r = await ctx.linker.verify(ctx.userId); return { text: r.linked ? "تلگرام وصل شد ✅" : `هنوز وصل نشد: ${r.reason}` }; }
       if (sub === "status") { const s = await ctx.linker.status(ctx.userId); return { text: s.linked ? `وصل است (از ${when(s.verifiedAt)})` : "وصل نیست." }; }
       if (sub === "unlink") { await ctx.linker.unlink(ctx.userId); return { text: "تلگرام جدا شد." }; }
-      return { text: "/telegram link | verify | status | unlink" };
+      if (sub === "test") {
+        const r = await ctx.notifications.sendTest(ctx.userId);
+        if (!r.ok) return { text: `آزمایش انجام نشد: ${r.reason}` };
+        const st = r.row.deliveryStatus;
+        return { text: st === "sent"
+          ? `تلگرام دریافت را تأیید کرد ✅ (اعلان #${toPersianDigits(r.row.id)}، ${when(r.row.deliveredAt)}).`
+          : `ارسال تأیید نشد — وضعیت ذخیره‌شده: ${st}${r.row.lastError ? ` (${r.row.lastError})` : ""}${st === "retrying" ? `؛ تلاش بعدی ${when(r.row.nextAttemptAt)} توسط worker` : ""}` };
+      }
+      return { text: "/telegram link | verify | status | test | unlink" };
     }
   }
   return null;

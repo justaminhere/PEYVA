@@ -128,6 +128,7 @@ If several candidate dates give different results, the precedence is MATCH > PRO
   - A 429 is retried after its `retry_after`, and a 5xx or network error with exponential backoff. A 4xx (for example, the bot was blocked) is marked `failed`.
   - A timeout after the request was sent is ambiguous. It is retried once and then marked `unknown`, so the user is not spammed and nothing is claimed as delivered.
   - A row stuck in `sending` for more than 10 minutes becomes `unknown`.
+- `/telegram test` (or `peyva:goals telegram test`) is the explicit live test of the full path: it queues one test row in the outbox, delivers it, and reports the status **as stored**. It reports success only for `sent`.
 - The bot token is validated, used only in the request URL, and scrubbed (`***`) from every stored or logged error.
 
 ## 10. How to run
@@ -141,7 +142,7 @@ bun run peyva:worker --once     # one real check (MrBilit), or `bun run peyva:wo
 bun run peyva:goals list | show N | pause N | resume N | cancel N | budget N "۲۰ میلیون" | notifications | prefs
 ```
 
-The same commands work inside the chat: `/goals`, `/goal N`, `/pause N`, `/resume N`, `/cancel N`, `/budget N <amount>`, `/notifications`, `/prefs`, `/pref …` and `/telegram link|verify|status|unlink`. Commands need no LLM, so they use no API quota. In the chat, `/trip` shows the current conversation goal (it was `/goal` in Phase 2).
+The same commands work inside the chat: `/goals`, `/goal N`, `/pause N`, `/resume N`, `/cancel N`, `/budget N <amount>`, `/notifications`, `/prefs`, `/pref …` and `/telegram link|verify|status|test|unlink`. Commands need no LLM, so they use no API quota. In the chat, `/trip` shows the current conversation goal (it was `/goal` in Phase 2).
 
 For a permanent worker on Linux, run `bun run peyva:worker` under a systemd user service. Alternatively, run `peyva:worker --once` from a timer every hour; due goals are still checked only every ≥ 6 h.
 
@@ -156,12 +157,12 @@ For a permanent worker on Linux, run `bun run peyva:worker` under a systemd user
 
 ## 12. Tests, limits and next steps
 
-`bun run test` gives 109 tests, all passing:
+`bun run test` gives 110 tests, all passing:
 
 - 68 Phase 2 tests.
 - `db` (3): the check constraint and a real server restart.
 - `memory-goals` (14).
-- `worker` (18): claiming, crash recovery, retries, timeout, pause during a run, dedup and cooldown, flight-change alerts, Telegram linking and delivery states, token scrubbing, injection.
+- `worker` (19): claiming, crash recovery, retries, timeout, pause during a run, dedup and cooldown, flight-change alerts, Telegram linking and delivery states, token scrubbing, injection.
 - `phase3-chat` (6): LLM draft → code approval, "no" and unrelated replies, the false-claim guard, preferences, slash commands, the no-database mode.
 
 `bun run typecheck` is clean. Tests use a real embedded PostgreSQL 18 (`test/support/pg.ts`).

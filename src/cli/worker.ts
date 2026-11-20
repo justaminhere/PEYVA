@@ -32,6 +32,7 @@ console.log(`PEYVA worker ${worker.o.id} · db ${rt.dbLabel} · interval ${Math.
 
 if (process.argv.includes("--once")) {
   const r = await worker.runOnce();
+  log({ type: "pass", checked: r.outcomes.length, expired: r.expired, deliveries: r.delivered });
   console.log(`pass done: ${r.outcomes.length} goal(s) checked, ${r.expired} expired, deliveries ${JSON.stringify(r.delivered)}`);
   await rt.close();
 } else {
