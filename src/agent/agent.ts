@@ -103,6 +103,7 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string, hook
   const appActions: string[] = [];
   let correction: string | null = null;
   let retriedInvalidCall = false;
+  const seenCalls = new Set<string>();
   const t0 = performance.now();
   const done = (r: Omit<TurnResult, "toolCalls" | "durationMs" | "llmCalls" | "appActions">): TurnResult =>
     ({ ...r, toolCalls: calls, llmCalls, appActions, durationMs: Math.round(performance.now() - t0) });
@@ -137,6 +138,15 @@ export async function runTurn(s: Session, llm: LlmClient, userText: string, hook
           s.messages.push({ role: "tool", toolCallId: call.id, content: JSON.stringify({ ok: false, error: "tool call limit for this message reached; answer the user now" }) });
           continue;
         }
+        // Live E2E: the model re-sent the very same update six times. An identical call changes nothing; say so and
+        // tell it to answer instead of spending another round trip.
+        const sig = `${call.name}:${call.arguments.replace(/\s+/g, "")}`;
+        if (seenCalls.has(sig)) {
+          calls.push({ name: call.name, arguments: call.arguments.slice(0, 600), ok: false });
+          s.messages.push({ role: "tool", toolCallId: call.id, content: JSON.stringify({ ok: false, error: "identical to a call you already made in this turn; it changes nothing. Do not repeat it: answer the user now (ask for whatever is still missing)." }) });
+          continue;
+        }
+        seenCalls.add(sig);
         hooks.onToolStart?.(call.name);
         const out = await runner.run(call.name, call.arguments);
         hooks.onToolDone?.(call.name, out.ok, out.events);

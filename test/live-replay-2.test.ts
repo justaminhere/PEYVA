@@ -36,30 +36,30 @@ test("Groq 400 'tool not in request.tools' (live: 'updateTripGoal') is retried o
   expect(s.messages.some((m) => m.role === "system")).toBe(false);
 });
 
-test("live turn 3: invented rooms dropped, missed travellers + budget reported back and fixed by the retry", async () => {
+test("live turn 3: invented rooms dropped; travellers and budget the LLM missed are recorded by the app from the user's words", async () => {
   const s = new Session(new RecordedProvider(now), now);
   const llm = new ScriptedLlm([
     tools(call("update_trip_goal", { origin: "تهران", preferences: ["یک نفر"], rooms: 1 })), // exactly the live call
     (msgs) => {
       const r = JSON.parse(msgs.at(-1)!.content as string);
       expect(r.checks.droppedBecauseUserDidNotSayIt.join()).toContain("rooms");
-      expect(r.checks.mentionedButNotRecorded.join()).toContain("travellers");
-      expect(r.checks.mentionedButNotRecorded.join()).toContain("budget");
-      return tools(call("update_trip_goal", { adults: 1, budgetText: "۳۰ میلیون" }));
+      expect(r.checks.recordedByAppFromUserWords).toEqual(["adults=1", expect.stringContaining("budgetText=")]);
+      expect(r.checks.mentionedButNotRecorded).toEqual([]);
+      return say("تاریخ رفت؟"); // no second update round trip needed
     },
-    say("تاریخ رفت؟"),
   ]);
   const t = await runTurn(s, llm, "تهران، یک نفر، بودجه ۳۰ میلیون");
   expect(s.goal).toMatchObject({ adults: 1, rooms: 1, roomsDerived: true, budget: { toman: 30_000_000 } });
   expect(t.warnings).toEqual([]);
 });
 
-test("if the LLM never records what the user said, the user sees a warning", async () => {
+test("if the LLM never records what the user said and the app cannot either (children), the user sees a warning", async () => {
   const s = new Session(new RecordedProvider(now), now);
-  const t = await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", { origin: "تهران" })), say("تاریخ؟")]), "تهران، یک نفر، بودجه ۳۰ میلیون");
+  const t = await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", { origin: "تهران" })), say("تاریخ؟")]), "تهران، دو نفر با یه بچه، بودجه ۳۰ میلیون");
   const w = t.warnings.join();
   expect(w).toContain("تعداد مسافر");
-  expect(w).toContain("بودجه");
+  expect(w).not.toContain("بودجه"); // the budget was recorded from the user's words
+  expect(s.goal.budget?.toman).toBe(30_000_000);
 });
 
 test("an invented budget or self-confirmation is dropped", async () => {

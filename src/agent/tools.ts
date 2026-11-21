@@ -15,6 +15,51 @@ import { parseAmount, toToman } from "../goal/persian.ts";
  * Checks the LLM's patch against the user's own words. Returns a cleaned patch (fields the user never mentioned are
  * removed), what was dropped, and details the user mentioned that are still not recorded.
  */
+/**
+ * A day range in the user's words that means the stay itself (departure .. return), not a flexible window to search in.
+ * Not a stay when: the LLM or the goal uses a window/month, the user says "بین"/"هر تاریخی"/flexible, or the stated
+ * number of nights differs from the range length.
+ */
+export function stayRangeIn(userText: string, goal: TripGoal, patch: GoalPatch) {
+  const range = dayRangeIn(userText);
+  if (!range) return null;
+  if (patch.dateWindow || patch.month || patch.datesFlexible || goal.dates.window || goal.dates.mode === "flexible") return null;
+  if (/(^|\s)بین(\s|$)|هر تاریخ|هر روز|منعطف|انعطاف/u.test(userText)) return null;
+  const nights = signalsIn(userText).nights;
+  if (nights !== null && range.from.month === range.to.month && range.to.day - range.from.day !== nights) return null;
+  return range;
+}
+
+/**
+ * Details the user stated unambiguously in this message that the LLM left out, recorded by the app itself
+ * (live E2E: the model kept re-sending a partial update and never added them). Only fields still empty in the goal,
+ * only values parsed from the user's own words: a stated day range, traveller count (no children mentioned),
+ * nights, minimum stars, and the budget words. Origin, destination and anything ambiguous stay with the LLM.
+ */
+export function userStatedFill(userText: string, goal: TripGoal, llmPatch: GoalPatch): { fill: GoalPatch; notes: string[] } {
+  const sig = signalsIn(userText);
+  const fill: GoalPatch = {};
+  const notes: string[] = [];
+  const range = stayRangeIn(userText, goal, llmPatch);
+  if (range && !goal.dates.departure && llmPatch.departureDate === undefined) {
+    fill.departureDate = { calendar: range.from.calendar, year: range.from.year, month: range.from.month, day: range.from.day };
+    notes.push("departureDate (first day of the user's range)");
+  }
+  if (range && !goal.dates.return && llmPatch.returnDate === undefined) {
+    fill.returnDate = { calendar: range.to.calendar, year: range.to.year, month: range.to.month, day: range.to.day };
+    notes.push("returnDate (second day of the user's range)");
+  }
+  if (sig.travellers !== null && goal.adults === null && llmPatch.adults === undefined && !sig.mentionsChildren) { fill.adults = sig.travellers; notes.push(`adults=${sig.travellers}`); }
+  if (sig.nights !== null && goal.dates.nights === null && llmPatch.nights === undefined) { fill.nights = sig.nights; notes.push(`nights=${sig.nights}`); }
+  if (sig.stars !== null && goal.minimumHotelStars === null && llmPatch.minimumHotelStars === undefined) { fill.minimumHotelStars = sig.stars; notes.push(`minimumHotelStars=${sig.stars}`); }
+  if (sig.budgetWords && goal.budget === null && llmPatch.budgetText === undefined) {
+    fill.budgetText = sig.budgetWords;
+    if (sig.budgetScope) fill.budgetScope = sig.budgetScope;
+    notes.push(`budgetText="${sig.budgetWords}"`);
+  }
+  return { fill, notes };
+}
+
 export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGoal): { patch: GoalPatch; dropped: string[]; unrecorded: string[]; signals: Signals } {
   const sig = signalsIn(userText);
   const p: GoalPatch = { ...patch };
@@ -28,7 +73,7 @@ export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGo
   }
   if (p.confirmAssumptions && !sig.affirmation) { delete p.confirmAssumptions; dropped.push("confirmAssumptions: the user has not said yes; ask them to confirm"); }
   // Departure vs return (Phase 4A E2E: the LLM once put the only date the user gave into returnDate).
-  const range = dayRangeIn(userText);
+  const range = stayRangeIn(userText, goal, patch);
   const dayOf = (d: unknown) => (d && typeof d === "object" && "text" in d ? parseDayText(String((d as { text: string }).text)) : null) as { calendar?: string; month?: number; day?: number; year?: number | null } | null;
   if (range) {
     if (p.departureDate && !sameDay(range.from, dayOf(p.departureDate))) { delete p.departureDate; dropped.push(`departureDate: the user's range starts on day ${range.from.day}; use the first date of "<from> تا <to>" as departureDate`); }
@@ -213,6 +258,8 @@ export class ToolRunner {
         if (mm) return err(name, mm);
         const cc = crossCheckPatch(p.value, this.s.lastUserText(), this.s.goal);
         this.s.goal = applyPatch(this.s.goal, cc.patch, now);
+        const auto = userStatedFill(this.s.lastUserText(), this.s.goal, cc.patch);
+        if (auto.notes.length) this.s.goal = applyPatch(this.s.goal, auto.fill, now);
         const after = crossCheckPatch({}, this.s.lastUserText(), this.s.goal).unrecorded;
         const a = analyze(this.s.goal, now);
         events.push({ type: "goal_updated", missing: a.missing, ready: a.ready });
@@ -222,7 +269,7 @@ export class ToolRunner {
         const comparison = this.autoCompare && a.ready && after.length === 0 && affectsSearch(cc.patch as Record<string, unknown>)
           ? await this.compareNow(a, events) : undefined;
         return { ok: true, events, content: JSON.stringify({ ok: true, goal: this.s.goalSummary(), analysis: a,
-          checks: { droppedBecauseUserDidNotSayIt: cc.dropped, mentionedButNotRecorded: after,
+          checks: { droppedBecauseUserDidNotSayIt: cc.dropped, recordedByAppFromUserWords: auto.notes, mentionedButNotRecorded: after,
             instruction: after.length ? "Call update_trip_goal again and include the mentionedButNotRecorded items, as stated by the user." : undefined },
           ...(comparison ? { comparison, comparisonNote: "The app already searched and compared; the table is shown to the user. Answer now; do not call compare_trip_options." } : {}) }) };
       }

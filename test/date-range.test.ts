@@ -58,3 +58,37 @@ test("the full scenario update gives a ready goal with the right dates, stars an
   expect(analyze(s.goal, now).ready).toBe(true);
   expect(j.comparison.candidates[0]).toMatchObject({ datesFa: "۱۹ آذر ۱۴۰۵ تا ۲۲ آذر ۱۴۰۵", status: "complete" });
 });
+
+test("live replay 2026-11-21: partial, repeated updates from the real model still give the right goal in 2 calls, and repeats are refused", async () => {
+  const { runTurn } = await import("../src/agent/agent.ts");
+  const { ScriptedLlm, call, say, tools } = await import("./support/scripted-llm.ts");
+  const p = new RecordedProvider(() => now);
+  const s = new Session(p, () => now);
+  // exactly what qwen/qwen3.8-27b sent (it then repeated the second call four more times)
+  const second = call("update_trip_goal", { destination: "کیش", returnDate: { text: "۱۳ دسامبر ۲۰۲۶" }, rooms: 1 });
+  const llm = new ScriptedLlm([
+    tools(call("update_trip_goal", { origin: "تهران", returnDate: { text: "۱۳ دسامبر ۲۰۲۶" }, rooms: 1 })),
+    tools(second),
+    tools({ ...second, id: "call_repeat" }),
+    say("گزینهٔ ۱ ارزان‌ترین است."),
+  ]);
+  const t = await runTurn(s, llm, SCENARIO);
+  expect(s.goal.dates).toMatchObject({ departure: "2026-12-10", return: "2026-12-13", nights: 3 });
+  expect(s.goal).toMatchObject({ adults: 1, rooms: 1, roomsDerived: true, minimumHotelStars: 2, budget: { toman: 30_000_000, scope: "total" } }); // 1 room derived from 1 traveller, not the LLM's invention
+  expect(t.toolCalls.map((c) => c.ok)).toEqual([true, true, false]); // the identical third call was not executed
+  expect(t.newComparison).toBe(true); // searched and compared after the 2nd call
+  expect(p.calls).toEqual(["F:THR-KIH-2026-12-10", "F:KIH-THR-2026-12-13", "H:کیش-2026-12-10-2026-12-13"]);
+  expect(t.warnings).toEqual([]);
+  expect(t.reply).toBe("گزینهٔ ۱ ارزان‌ترین است.");
+  const firstResult = JSON.parse(s.messages.find((m) => m.role === "tool")!.content as string);
+  expect(firstResult.checks.recordedByAppFromUserWords).toEqual(expect.arrayContaining(["departureDate (first day of the user's range)", "adults=1", "nights=3", "minimumHotelStars=2"]));
+  expect(firstResult.checks.droppedBecauseUserDidNotSayIt.join(" ")).toContain("rooms"); // the invented room count is still refused
+});
+
+test("the app never fills what is ambiguous: children mentioned, or nothing stated", async () => {
+  const { userStatedFill } = await import("../src/agent/tools.ts");
+  expect(userStatedFill("دو نفر با یه بچه می‌ریم مشهد", emptyGoal(), {}).fill.adults).toBeUndefined();
+  expect(userStatedFill("می‌خوام برم مشهد", emptyGoal(), {}).fill).toEqual({});
+  const g = applyPatch(emptyGoal(), { nights: 2 }, now);
+  expect(userStatedFill("سه شب", g, {}).fill.nights).toBeUndefined(); // already set: the LLM/user must change it explicitly
+});

@@ -1,8 +1,9 @@
 /**
  * Deterministic "signals" in the user's own message. Used to cross-check the LLM's GoalPatch:
  * a field the user never mentioned is dropped (no invented rooms/stars/nights/budget), and a detail the user
- * did mention but the LLM left out is reported back so it can be recorded. Signals never create values on their own,
- * except the monitoring wish, which only sets a flag and shows a notice.
+ * did mention but the LLM left out is reported back so it can be recorded. A few values are unambiguous enough to be
+ * recorded by the app itself when the LLM left them out (see `userStatedFill` in agent/tools.ts): they are the user's
+ * own words parsed by tested code, never guesses. Everything else stays with the LLM.
  */
 import { parseAmount, toLatinDigits, toToman } from "./persian.ts";
 
@@ -13,6 +14,12 @@ const n = (s: string) => (/^\d+$/.test(s) ? Number(s) : WORD_NUM[s] ?? null);
 export interface Signals {
   travellers: number | null;
   budgetToman: number | null;
+  /** The budget words exactly as matched in the message (for budgetText). */
+  budgetWords: string | null;
+  /** "کل"/"مجموع" → total, "نفری"/"هر نفر" → per person, else null. */
+  budgetScope: "total" | "per_person" | null;
+  /** Children/infants mentioned: then a traveller count is not simply "adults". */
+  mentionsChildren: boolean;
   stars: number | null;
   nights: number | null;
   mentionsRooms: boolean;
@@ -32,6 +39,9 @@ export function signalsIn(raw: string): Signals {
   return {
     travellers: trav ? n(trav[1]!) : alone ? 1 : null,
     budgetToman: parsed ? toToman(parsed).toman : null,
+    budgetWords: money ? money[0] : null,
+    budgetScope: /(^|\s)(کل|مجموع|مجموعا|جمعا|روی هم)(\s|$)/u.test(t) ? "total" : /(نفری|هر نفر|برای هر نفر)/u.test(t) ? "per_person" : null,
+    mentionsChildren: /بچه|کودک|نوزاد|خردسال|پسرم|دخترم/u.test(t),
     stars: stars ? n(stars[1]!) : null,
     nights: nights ? n(nights[1]!) : null,
     mentionsRooms: /اتاق/u.test(t),

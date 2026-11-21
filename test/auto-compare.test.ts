@@ -56,8 +56,8 @@ test("a stars change re-compares from fresh cached results: no provider request"
 test("no auto-compare while details the user gave are still unrecorded (the LLM must fix the goal first)", async () => {
   const p = new RecordedProvider(now);
   const s = new Session(p, now);
-  // ready goal, but the message also names a budget the call leaves out
-  await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", ready)), say("…")]), U + "، بودجه ۳۰ میلیون");
+  // ready goal, but the message gives a traveller count with a child, which the app cannot record by itself
+  await runTurn(s, new ScriptedLlm([tools(call("update_trip_goal", ready)), say("…")]), "تهران به کیش، ۱۹ آذر ۱۴۰۵، سه شب، دو نفر با یه بچه");
   expect(p.calls).toEqual([]);
   expect(s.lastComparison).toBeNull();
 });
