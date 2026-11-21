@@ -31,7 +31,8 @@ const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 const hostname = env.PEYVA_WEB_HOST?.trim() || (PUBLIC ? "0.0.0.0" : "127.0.0.1");
 if (!PUBLIC && !LOOPBACK.has(hostname))
   fail(`PEYVA_WEB_HOST=${hostname} refused: the single-user API may only listen on 127.0.0.1, ::1 or localhost (public use: PEYVA_PUBLIC=1).`);
-const port = Number(env.PEYVA_WEB_PORT ?? (PUBLIC ? env.PORT : undefined) ?? 4317);
+// Public: the platform's PORT if it sets one (Render), else 10000 (Liara asks for the port at deploy time: give 10000).
+const port = Number(env.PEYVA_WEB_PORT ?? (PUBLIC ? env.PORT ?? 10000 : 4317));
 const devPort = Number(env.PEYVA_WEB_DEV_PORT ?? 5173);
 
 // Public mode: the exact public host name(s) (Render sets RENDER_EXTERNAL_HOSTNAME) and the cookie signing key.

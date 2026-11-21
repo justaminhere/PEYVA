@@ -13,8 +13,12 @@ RUN bun run web:build
 
 FROM oven/bun:1.4.5 AS run
 # MrBilit's MCP server is a pinned Python package started with uvx (read-only flight and hotel search).
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-ENV NODE_ENV=production PEYVA_PUBLIC=1 UV_NO_PROGRESS=1
+# Python comes from Debian and uv from PyPI (both mirrored by Iranian hosts such as Liara); uv uses this Python
+# instead of downloading one from GitHub.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip ca-certificates \
+ && pip3 install --no-cache-dir --break-system-packages uv \
+ && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production PEYVA_PUBLIC=1 UV_NO_PROGRESS=1 UV_PYTHON_PREFERENCE=system
 WORKDIR /app
 RUN chown bun:bun /app
 USER bun

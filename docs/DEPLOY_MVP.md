@@ -84,6 +84,35 @@ How quotas are enforced:
 - the three LLM variables,
 - the platform's `PORT`.
 
+## 3b. Deploy on Liara (Iran)
+
+Liara runs the app from an Iranian IP.
+
+**What works and what doesn't from an Iranian server**
+- **MrBilit:** more likely to work.
+- **Groq:** will not work, because it blocks IP ranges from sanctioned countries. Do not route it through a proxy or VPN.
+  - Use an OpenAI-compatible LLM endpoint that serves Iran, for example Liara's AI service.
+  - The model must support tool (function) calling and handle Persian.
+  - Check both with `bun run peyva:llm-check` before deploying.
+- **Telegram:** blocked from Iran. That changes nothing here, because Telegram is off in public mode.
+
+**Steps**
+1. In the Liara console:
+   - Create a **Docker** app, e.g. `peyva`.
+   - Create a **PostgreSQL** database on the same private network.
+2. Set the app's environment variables:
+   - `PEYVA_PUBLIC=1`
+   - `PEYVA_PUBLIC_HOST=peyva.liara.run` (the app's real domain)
+   - `PEYVA_SESSION_SECRET` (`openssl rand -base64 48`)
+   - `PEYVA_DATABASE_URL`: the database's private-network URL
+   - `PEYVA_LLM_BASE_URL`, `PEYVA_LLM_API_KEY`, `PEYVA_LLM_MODEL`: from the Liara AI panel
+3. Deploy from the repository folder with `liara deploy --app peyva --platform docker --port 10000`. The port must be 10000, which is the public-mode default when the platform sets no `PORT`.
+   - `.liaraignore` keeps `.env`, `node_modules`, local data and logs out of the upload.
+4. The Dockerfile takes Python from Debian and uv from PyPI, not from GitHub or ghcr.io, because those may be unreachable from Iranian build servers. If a build step still cannot download something, report the failing line; do not add mirrors of unknown origin.
+5. Check the client IP header. The new-visitor cap counts by the last `X-Forwarded-For` entry. If Liara's proxy puts its own address there, every visitor shares one "IP" and the 6th new visitor of the day is refused.
+   - Test from two different networks (mobile data and Wi-Fi).
+   - If the second is refused, set `PEYVA_CLIENT_IP_HEADER` to the header Liara uses for the real client IP, or raise `PEYVA_PUBLIC_NEW_VISITORS_PER_IP`.
+
 ## 4. Before calling it working, check on the deployed site
 
 1. `/api/health` returns `{"ok":true}`.
