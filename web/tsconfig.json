@@ -8,7 +8,7 @@
     "strict": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "typeRoots": ["../experiments/travel-mcp-spike/node_modules/@types"],
     "types": ["bun"]
   },

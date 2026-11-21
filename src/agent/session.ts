@@ -26,6 +26,8 @@ export class Session {
   blocked: string | null = null;
   monitoringNoticeShown = false;
   pending: PendingConfirmation | null = null;
+  /** Where replies are shown: the web app has buttons, so replies do not point to slash commands there. */
+  surface: "cli" | "web" = "cli";
   preferences: StoredPreference[] = [];
   /** Set when this session was rebuilt from PostgreSQL after a server restart (see memory/session-state.ts). */
   resumedFrom: { conversationId: number; savedAt: Date } | null = null;

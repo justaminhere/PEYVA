@@ -92,7 +92,7 @@ export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGo
   if (sig.monitoring && !p.monitoringRequested && !goal.monitoringRequested) unrecorded.push("monitoringRequested: the user asked to be told later");
   return { patch: p, dropped, unrecorded, signals: sig };
 }
-import { findCity } from "../travel/places.ts";
+import { cityByIata, findCity } from "../travel/places.ts";
 import { bestOverall, compareCandidate, type CandidateComparison } from "../compare/engine.ts";
 import { isFresh, validateFlightQuery, validateHotelQuery, type FlightQuery, type HotelQuery, type NormalizedFlight, type NormalizedHotel, type SearchResult } from "../travel/index.ts";
 import type { Session } from "./session.ts";
@@ -219,12 +219,13 @@ export class ToolRunner {
   /** Cached, freshness-aware, budgeted, circuit-broken search. */
   private async flights(q: FlightQuery, events: ToolEvent[]): Promise<SearchResult<NormalizedFlight> | { blocked: string }> {
     const key = `F:${q.origin}-${q.destination}-${q.date}-${q.adults}-${q.children ?? 0}`;
-    const label = `${q.origin}→${q.destination} ${q.date}`;
+    const fa = (iata: string) => cityByIata(iata)?.fa ?? iata;
+    const label = `${fa(q.origin)} به ${fa(q.destination)}، ${formatJalaliFa(q.date)}`;
     return this.cached(key, label, "flight", events, () => this.s.provider.searchFlights(q));
   }
   private async hotels(q: HotelQuery, events: ToolEvent[]): Promise<SearchResult<NormalizedHotel> | { blocked: string }> {
     const key = `H:${q.city}-${q.checkIn}-${q.checkOut}-${q.adults}`;
-    const label = `${q.city} ${q.checkIn}→${q.checkOut}`;
+    const label = `${q.city}، ${formatJalaliFa(q.checkIn)} تا ${formatJalaliFa(q.checkOut)}`;
     return this.cached(key, label, "hotel", events, () => this.s.provider.searchHotels(q));
   }
   private async cached<T>(key: string, label: string, kind: "flight" | "hotel", events: ToolEvent[], run: () => Promise<SearchResult<T>>): Promise<SearchResult<T> | { blocked: string }> {

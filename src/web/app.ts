@@ -15,6 +15,11 @@ import { comparisonCards } from "../render/cards.ts";
 import type { ToolEvent } from "../agent/tools.ts";
 import { AgentHost } from "./host.ts";
 import { goalView, goalViews, pendingView } from "./views.ts";
+import { TripEditSchema, applyTripEdit, tripView } from "./trip.ts";
+import { ToolRunner } from "../agent/tools.ts";
+import { analyze } from "../goal/state.ts";
+import { parseAmount, toToman } from "../goal/persian.ts";
+import type { Session } from "../agent/session.ts";
 import { saveSession } from "../memory/session-state.ts";
 import { tehranDateTime } from "../agent/confirm.ts";
 
@@ -56,6 +61,8 @@ export function localOnly(allowedHosts: string[], allowedOrigins: string[]): Mid
 }
 
 const eventView = (e: ToolEvent) => ({ ...e, textFa: renderEvent(e).trim() });
+const ProposeBody = z.object({ budget: z.string().trim().min(1).max(40).optional(), stars: z.number().int().min(0).max(5).optional() }).strict()
+  .refine((b) => b.budget !== undefined || b.stars !== undefined, "budget or stars");
 
 export function createApp(d: WebDeps) {
   const now = d.now ?? (() => new Date());
@@ -64,13 +71,26 @@ export function createApp(d: WebDeps) {
 
   app.get("/api/health", (c) => c.json({ ok: true }));
 
+  /** Everything that can change after any action, read from the session and PostgreSQL. */
+  const snapshot = async (s: Session) => {
+    const rows = await d.ctx.goals.list(d.ctx.userId);
+    return { pending: await pendingView(s, d.ctx), trip: tripView(s, rows), goals: await Promise.all(rows.map((g) => goalView(d.ctx, g))),
+      unreadAlerts: await d.ctx.notifications.unreadCount(d.ctx.userId) };
+  };
+  /** Records an action done with the app's controls in the transcript (shown on reload) and in the LLM's context. */
+  const note = async (s: Session, userText: string) => {
+    s.messages.push({ role: "user", content: userText });
+    const conv = s.persistence?.conversationId;
+    if (conv) await d.store.add(s.userId, conv, "user", userText, now());
+  };
+
   app.get("/api/state", async (c) => c.json(await d.host.run(async (s) => {
     const conv = s.persistence?.conversationId ?? null;
     const transcript = conv ? (await d.store.recent(s.userId, conv, 50)).map((m) => ({ id: m.id, role: m.role, text: m.content })) : [];
     return {
-      userId: s.userId, info: d.info ?? null, goal: s.goalSummary(), pending: pendingView(s), transcript,
+      userId: s.userId, info: d.info ?? null, goal: s.goalSummary(), transcript,
       resumed: s.resumedFrom ? { savedAtFa: tehranDateTime(s.resumedFrom.savedAt) } : null,
-      cards: s.lastComparison ? comparisonCards(s.lastComparison, now()) : null, goals: await goalViews(d.ctx),
+      cards: s.lastComparison ? comparisonCards(s.lastComparison, now()) : null, ...(await snapshot(s)),
     };
   })));
 
@@ -84,6 +104,7 @@ export function createApp(d: WebDeps) {
       try {
         await d.host.run(async (s) => {
           await send("accepted", { text: body.data.text });
+          const pendingGoal = s.pending?.kind === "goal" ? s.pending.goalId : null;
           const queue: Promise<unknown>[] = [];
           const q = (p: Promise<unknown>) => { queue.push(p); };
           const h = await handleMessage(s, d.llm, body.data.text, { commands: d.ctx, store: d.store, hooks: {
@@ -96,10 +117,11 @@ export function createApp(d: WebDeps) {
           await saveSession(s, d.store); // structured working state, so a restarted server can continue this conversation
           if (h.turn?.newComparison && s.lastComparison) await send("cards", comparisonCards(s.lastComparison, now()));
           // The approval question is shown by the UI's approval card (from `state.pending`), so it is not repeated here.
-          await send("reply", { text: h.text, question: h.question, source: h.source, warnings: h.turn?.warnings ?? [], llmError: h.turn?.llmError ?? null });
+          await send("reply", { text: h.text, question: h.question, source: h.source, warnings: h.turn?.warnings ?? [], llmError: h.turn?.llmError ?? null,
+            activityGoalId: h.source === "approval" && pendingGoal && !s.pending ? pendingGoal : null });
           d.log?.({ type: "turn", user: body.data.text, reply: h.reply, source: h.source, toolCalls: h.turn?.toolCalls, llmCalls: h.turn?.llmCalls,
             warnings: h.turn?.warnings, llmError: h.turn?.llmError, durationMs: h.turn?.durationMs, goal: s.goalSummary() });
-          await send("state", { pending: pendingView(s), goal: s.goalSummary(), goals: await goalViews(d.ctx) });
+          await send("state", { goal: s.goalSummary(), ...(await snapshot(s)) });
         });
       } catch (e) {
         await send("error", { message: `خطای داخلی: ${(e as Error).message.slice(0, 200)}` });
@@ -119,6 +141,7 @@ export function createApp(d: WebDeps) {
       // The button must refer to what is pending now (a stale screen must not approve something else).
       if (p.kind === "goal" && body.data.goalId !== p.goalId) return c.json({ error: "this approval is no longer current" }, 409);
       if (p.kind === "preference" && body.data.key !== p.key) return c.json({ error: "this approval is no longer current" }, 409);
+      const goalId = p.kind === "goal" ? p.goalId : null;
       const reply = await decidePending(s, body.data.decision === "approve");
       await saveSession(s, d.store);
       const conv = s.persistence?.conversationId;
@@ -126,11 +149,72 @@ export function createApp(d: WebDeps) {
         await d.store.add(s.userId, conv, "user", body.data.decision === "approve" ? "(دکمهٔ تأیید)" : "(دکمهٔ رد)", now());
         await d.store.add(s.userId, conv, "assistant", reply, now());
       }
-      return c.json({ reply, pending: pendingView(s), goals: await goalViews(d.ctx) });
+      return c.json({ reply, activityGoalId: goalId, ...(await snapshot(s)) });
     });
   });
 
+  /** One validated edit of the session's trip goal from the brief (no LLM call). */
+  app.post("/api/trip", async (c) => {
+    const body = TripEditSchema.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ errorFa: "این مقدار معتبر نیست." }, 400);
+    return d.host.run(async (s) => {
+      const r = applyTripEdit(s, body.data);
+      if (!r.ok) return c.json({ errorFa: r.errorFa }, 400);
+      await note(s, `✎ ${r.changeFa}`);
+      await saveSession(s, d.store);
+      return c.json({ changeFa: r.changeFa, ...(await snapshot(s)) });
+    });
+  });
+
+  /** Re-runs the deterministic comparison for the current goal (real, read-only searches; no LLM call). */
+  app.post("/api/compare", async (c) => d.host.run(async (s) => {
+    const a = analyze(s.goal, s.now());
+    if (!a.ready) return c.json({ errorFa: "هدف هنوز کامل نیست.", ...(await snapshot(s)) }, 409);
+    s.turnSearches = 0;
+    const out = await new ToolRunner(s, { autoCompare: false }).run("compare_trip_options", "{}");
+    if (!out.ok || !s.lastComparison) return c.json({ errorFa: "جست‌وجو انجام نشد.", events: out.events.map(eventView), ...(await snapshot(s)) }, 502);
+    s.messages.push({ role: "assistant", content: "(برنامه با شرایط فعلی دوباره جست‌وجو کرد و جدول تازه را نشان داد.)" });
+    const conv = s.persistence?.conversationId;
+    if (conv) await d.store.add(s.userId, conv, "assistant", "نتایج با شرایط فعلی دوباره بررسی شد.", now());
+    await saveSession(s, d.store);
+    return c.json({ cards: comparisonCards(s.lastComparison, now()), events: out.events.map(eventView), ...(await snapshot(s)) });
+  }));
+
+  /** Proposes new conditions for a monitored goal. Nothing changes until the user approves in the approval panel. */
+  app.post("/api/goals/:id/propose", async (c) => {
+    const id = Number(c.req.param("id"));
+    const body = ProposeBody.safeParse(await c.req.json().catch(() => null));
+    if (!Number.isInteger(id) || !body.success) return c.json({ errorFa: "تغییر معتبر نیست." }, 400);
+    return d.host.run(async (s) => {
+      if (s.pending && !(s.pending.kind === "goal" && s.pending.goalId === id)) return c.json({ errorFa: "اول به تأییدی که منتظر است جواب بده." }, 409);
+      const g = await d.ctx.goals.get(d.ctx.userId, id);
+      const ex = g && d.ctx.registry.get(g.type);
+      const cur = g && ex?.schema.safeParse(g.structuredConstraints);
+      if (!g || !ex || !cur?.success) return c.json({ errorFa: "هدفی با این شماره نیست." }, 404);
+      const next: Record<string, unknown> = { ...(cur.data as object) };
+      if (body.data.budget !== undefined) {
+        const p = parseAmount(body.data.budget);
+        if (!p || toToman(p).toman < 100_000) return c.json({ errorFa: `مبلغ «${body.data.budget}» را نتوانستم بخوانم.` }, 400);
+        next.budgetToman = toToman(p).toman;
+      }
+      if (body.data.stars !== undefined) next.minimumHotelStars = body.data.stars || null;
+      const r = await d.ctx.goals.updateConstraints(d.ctx.userId, id, next, now());
+      if (!r.ok) return c.json({ errorFa: r.reason === "wrong_state" ? "این هدف دیگر قابل تغییر نیست." : `تغییر ثبت نشد (${r.reason}).` }, 409);
+      if (!r.changed) return c.json({ unchanged: true, ...(await snapshot(s)) });
+      s.pending = { kind: "goal", goalId: id, hash: r.hash, summaryFa: r.summaryFa, change: r.proposal };
+      await saveSession(s, d.store);
+      return c.json({ ...(await snapshot(s)) });
+    });
+  });
+
+  app.post("/api/notifications/read", async (c) => d.host.run(async (s) => {
+    await d.ctx.notifications.markRead(d.ctx.userId);
+    return c.json(await snapshot(s));
+  }));
+
   app.get("/api/goals", async (c) => c.json({ goals: await goalViews(d.ctx) }));
+  /** Light refresh of the agent's persistent activities (polled by the UI while visible). Reads PostgreSQL only. */
+  app.get("/api/activity", async (c) => c.json({ goals: await goalViews(d.ctx), unreadAlerts: await d.ctx.notifications.unreadCount(d.ctx.userId) }));
   app.get("/api/goals/:id", async (c) => {
     const id = Number(c.req.param("id"));
     const g = Number.isInteger(id) ? await d.ctx.goals.get(d.ctx.userId, id) : null;

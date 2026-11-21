@@ -168,6 +168,22 @@ export class NotificationService {
     return { ok: true, row: after! };
   }
 
+  /** Latest in-app match alert of a goal and the stored status of its Telegram copy (same alert, other channel). */
+  async latestForGoal(userId: string, goalId: number) {
+    const [inApp] = await this.db.select().from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.goalId, goalId), eq(notifications.channel, "in_app"))).orderBy(desc(notifications.id)).limit(1);
+    if (!inApp) return null;
+    const [telegram] = await this.db.select().from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.deduplicationKey, inApp.deduplicationKey.replace(/:in_app$/, ":telegram")))).limit(1);
+    return { inApp, telegram: telegram ?? null };
+  }
+
+  async unreadCount(userId: string): Promise<number> {
+    const rows = await this.db.select({ id: notifications.id }).from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.channel, "in_app"), eq(notifications.deliveryStatus, "stored")));
+    return rows.length;
+  }
+
   list(userId: string, limit = 20) {
     return this.db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(limit);
   }

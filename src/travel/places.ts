@@ -33,6 +33,8 @@ export function normalizeFa(s: string): string {
   return s.replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+export const cityByIata = (iata: string): City | null => CITIES.find((c) => c.iata === iata) ?? null;
+
 export function findCity(name: string): City | null {
   const n = normalizeFa(name).replace(/^(شهر|جزیره)\s+/, "");
   return CITIES.find((c) => normalizeFa(c.fa) === n || c.aliases.some((a) => normalizeFa(a) === n) || c.id === n) ?? null;

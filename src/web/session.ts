@@ -20,6 +20,7 @@ export function webSessionFactory(d: SessionFactoryDeps) {
   let first = true;
   return async (): Promise<Session> => {
     const s = new Session(d.provider, now, d.userId, { ...d.persistence, conversationId: null });
+    s.surface = "web";
     s.preferences = await d.persistence.prefs.list(d.userId);
     const tryResume = first && (d.resumeMaxAgeMs ?? 24 * 3_600_000) > 0;
     first = false; // "گفتگوی تازه" (reset) always starts a new conversation
