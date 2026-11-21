@@ -189,7 +189,7 @@ export function App({ api }: { api: Api }) {
     try {
       const r = await api.compare();
       dispatch({ t: "snap", s: r });
-      dispatch({ t: "push", m: newMsg("assistant", "نتایج با شرایط فعلی دوباره بررسی شد.", { cards: r.cards,
+      dispatch({ t: "push", m: newMsg("assistant", "نتایج با شرایط فعلی بررسی شد.", { cards: r.cards,
         steps: [{ key: "cmp", labelFa: "مقایسهٔ گزینه‌ها", status: "ok", count: 1, details: r.events.map((e) => e.textFa) }] }) });
       setAnnounce("نتایج تازه آماده شد.");
     } catch (e) {

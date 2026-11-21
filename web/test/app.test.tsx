@@ -186,7 +186,7 @@ test("after an edit the shown results are marked outdated; one click re-checks w
   const again = await eventually(() => within(brief()).getByRole("button", { name: "جست‌وجوی دوباره با شرایط تازه" }));
   const calls = llm.requests.length;
   await act(async () => { fireEvent.click(again); });
-  await eventually(() => within(screen.getByRole("main")).getByText("نتایج با شرایط فعلی دوباره بررسی شد."));
+  await eventually(() => within(screen.getByRole("main")).getByText("نتایج با شرایط فعلی بررسی شد."));
   const candidates = screen.getAllByTestId("candidate");
   expect(within(candidates.at(-1)!).getAllByText("۲۸٬۶۸۱٬۳۰۰ تومان").length).toBeGreaterThan(0);
   expect(llm.requests.length).toBe(calls);

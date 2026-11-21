@@ -173,9 +173,9 @@ export function createApp(d: WebDeps) {
     s.turnSearches = 0;
     const out = await new ToolRunner(s, { autoCompare: false }).run("compare_trip_options", "{}");
     if (!out.ok || !s.lastComparison) return c.json({ errorFa: "جست‌وجو انجام نشد.", events: out.events.map(eventView), ...(await snapshot(s)) }, 502);
-    s.messages.push({ role: "assistant", content: "(برنامه با شرایط فعلی دوباره جست‌وجو کرد و جدول تازه را نشان داد.)" });
+    s.messages.push({ role: "assistant", content: "(برنامه با شرایط فعلی جست‌وجو کرد و جدول تازه را نشان داد.)" });
     const conv = s.persistence?.conversationId;
-    if (conv) await d.store.add(s.userId, conv, "assistant", "نتایج با شرایط فعلی دوباره بررسی شد.", now());
+    if (conv) await d.store.add(s.userId, conv, "assistant", "نتایج با شرایط فعلی بررسی شد.", now());
     await saveSession(s, d.store);
     return c.json({ cards: comparisonCards(s.lastComparison, now()), events: out.events.map(eventView), ...(await snapshot(s)) });
   }));

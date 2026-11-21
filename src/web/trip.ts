@@ -133,7 +133,9 @@ export function applyTripEdit(s: Session, e: TripEdit): { ok: true; changeFa: st
     case "budget": {
       const p = parseAmount(e.value);
       if (!p || toToman(p).toman < 100_000) return { ok: false, errorFa: `مبلغ «${e.value}» را نتوانستم بخوانم. مثلاً «۳۰ میلیون».` };
-      patch = { budgetText: e.value, budgetScope: g.budget?.scope === "per_person" ? "per_person" : "total" };
+      // The brief's budget field is in Toman (shown and labelled so); a value without a unit is Toman, not an assumption.
+      const text = /تومان|تومن|ریال/u.test(e.value) ? e.value : `${e.value} تومان`;
+      patch = { budgetText: text, budgetScope: g.budget?.scope === "per_person" ? "per_person" : "total" };
       break;
     }
     case "stars": patch = e.value ? { minimumHotelStars: e.value } : {}; break;

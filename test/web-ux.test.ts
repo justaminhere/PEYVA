@@ -166,3 +166,24 @@ test("diff of two condition summaries lists only changed lines", () => {
   expect(diffSummaries("الف: ۱\nب: ۲\nج: ۳", "الف: ۱\nب: ۵\nج: ۳")).toEqual([{ labelFa: "ب", beforeFa: "۲", afterFa: "۵" }]);
   expect(diffSummaries("الف: ۱", "الف: ۱")).toEqual([]);
 });
+
+test("asking to monitor a trip that is already monitored does not create a second goal", async () => {
+  const w = await webApp(h, new ScriptedStreamingLlm([goalCall, tools(call("start_monitoring", {})), say("تأیید؟"), tools(call("start_monitoring", {})), say("این سفر از قبل زیر نظر است.")]), now);
+  const id = (await w.chat(TEXT + "؛ اگه پیدا شد خبرم کن")).of("state")[0].pending.goalId;
+  await post(w, "/api/approval", { decision: "approve", goalId: id });
+  const r = await w.chat("اگه ارزون شد خبرم کن");
+  const done = r.of("tool_done")[0];
+  expect(done).toMatchObject({ name: "start_monitoring", ok: false });
+  expect(done.events[0].textFa).toContain("همین شرایط از قبل زیر نظر است");
+  expect(r.of("state")[0].pending).toBeNull();
+  expect((await w.ctx.goals.list("amin")).length).toBe(1);
+});
+
+test("a budget typed in the brief without a unit is Toman (the field is labelled in Toman), not an assumption", async () => {
+  const w = await webApp(h, new ScriptedStreamingLlm([goalCall, say("…")]), now);
+  await w.chat(TEXT);
+  const st = await (await post(w, "/api/trip", { field: "budget", value: "۲۸ میلیون" })).json() as any;
+  const s = await (await w.call("/api/state")).json() as any;
+  expect(s.goal.budget).toMatchObject({ toman: 28_000_000, assumedUnit: false });
+  expect(st.trip.conflictsFa).toEqual([]);
+});

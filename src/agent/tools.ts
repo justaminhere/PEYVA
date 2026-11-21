@@ -93,6 +93,7 @@ export function crossCheckPatch(patch: GoalPatch, userText: string, goal: TripGo
   return { patch: p, dropped, unrecorded, signals: sig };
 }
 import { cityByIata, findCity } from "../travel/places.ts";
+import { toPersianDigits } from "../goal/persian.ts";
 import { bestOverall, compareCandidate, type CandidateComparison } from "../compare/engine.ts";
 import { isFresh, validateFlightQuery, validateHotelQuery, type FlightQuery, type HotelQuery, type NormalizedFlight, type NormalizedHotel, type SearchResult } from "../travel/index.ts";
 import type { Session } from "./session.ts";
@@ -323,6 +324,11 @@ export class ToolRunner {
         const { constraintsFromTripGoal } = await import("../goals/travel.ts");
         const c = constraintsFromTripGoal(this.s.goal);
         if (!c.ok) return err(name, "goal is not complete for monitoring", { missing: c.missing });
+        // The same conditions already monitored: no second goal (and no second set of alerts).
+        const { constraintsHash } = await import("../goals/service.ts");
+        const hash = constraintsHash(c.constraints);
+        const twin = (await pers.goals.list(this.s.userId)).find((g) => (g.status === "active" || g.status === "paused") && g.constraintsHash === hash);
+        if (twin) return err(name, `همین شرایط از قبل زیر نظر است (هدف #${toPersianDigits(twin.id)}). به کاربر بگو؛ هدف تازه نساز.`, { goalId: twin.id, status: twin.status });
         const d = await pers.goals.createDraft(this.s.userId, "travel_price", c.constraints, now);
         if (!d.ok) return err(name, `could not create the draft: ${d.reason}${d.detail ? " " + d.detail : ""}`);
         this.s.pending = { kind: "goal", goalId: d.goal.id, hash: d.goal.constraintsHash, summaryFa: d.summaryFa };

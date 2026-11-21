@@ -17,26 +17,32 @@ const OPTIONAL: TripFieldKey[] = ["budget", "stars"];
 
 export function Brief({ trip, busy, checking, onEdit, onCompare }: BriefProps) {
   const [editing, setEditing] = useState<TripFieldKey | null>(null);
+  const [returnFocus, setReturnFocus] = useState<TripFieldKey | null>(null);
   const chipRefs = useRef(new Map<TripFieldKey, HTMLButtonElement | null>());
+  // Focus goes back to the chip once it is enabled again (it is disabled while the save request runs).
+  useEffect(() => {
+    if (returnFocus && !editing && !busy) { chipRefs.current.get(returnFocus)?.focus(); setReturnFocus(null); }
+  }, [returnFocus, editing, busy]);
   if (trip.empty) return null;
   const shown = trip.fields.filter((f) => f.valueFa !== null || f.missing || OPTIONAL.includes(f.key));
-  const close = (key: TripFieldKey) => { setEditing(null); requestAnimationFrame(() => chipRefs.current.get(key)?.focus()); };
+  const close = (key: TripFieldKey) => { setEditing(null); setReturnFocus(key); };
   const field = editing && trip.fields.find((f) => f.key === editing);
   return (
     <section aria-label="آنچه پیوا از سفرت فهمیده" className="mb-2 rounded-xl border border-line bg-paper px-3 py-2">
       {field ? <FieldEditor field={field} busy={busy} onCancel={() => close(field.key)}
         onSave={async (v) => { const err = await onEdit(field.key, v); if (!err) close(field.key); return err; }} /> : (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="me-1 text-xs text-ink-soft">آنچه فهمیدم:</span>
+        // Mobile: one swipeable row, so the brief never eats the conversation; wider screens wrap.
+        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
+          <span className="me-1 shrink-0 text-xs text-ink-soft">آنچه فهمیدم:</span>
           {shown.map((f) => (
             <button key={f.key} ref={(el) => { chipRefs.current.set(f.key, el); }} type="button" disabled={busy} onClick={() => setEditing(f.key)}
               aria-label={`${f.labelFa}: ${f.valueFa ?? "مشخص نشده"}؛ ویرایش`}
-              className={`min-h-9 rounded-full px-3 text-sm transition-colors disabled:opacity-60 ${f.valueFa ? "bg-mist hover:bg-firouzeh-wash" : f.missing
+              className={`min-h-9 shrink-0 whitespace-nowrap rounded-full px-3 text-sm transition-colors disabled:opacity-60 ${f.valueFa ? "bg-mist hover:bg-firouzeh-wash" : f.missing
                 ? "border border-dashed border-saffron text-ink hover:bg-amber-50" : "border border-dashed border-line text-ink-soft hover:border-firouzeh"}`}>
               {f.valueFa ? <><span className="text-ink-soft">{f.labelFa} </span>{f.valueFa}</> : <>+ {f.labelFa}{f.missing ? "؟" : ""}</>}
             </button>
           ))}
-          {trip.monitoredBy ? <span className="min-h-9 rounded-full bg-firouzeh-wash px-3 py-1.5 text-sm text-firouzeh-deep">زیر نظر پیوا · #{trip.monitoredBy.goalIdFa}</span> : null}
+          {trip.monitoredBy ? <span className="min-h-9 shrink-0 whitespace-nowrap rounded-full bg-firouzeh-wash px-3 py-1.5 text-sm text-firouzeh-deep">زیر نظر پیوا · #{trip.monitoredBy.goalIdFa}</span> : null}
         </div>
       )}
       {!field && trip.assumptionsFa.length ? (
@@ -50,10 +56,10 @@ export function Brief({ trip, busy, checking, onEdit, onCompare }: BriefProps) {
       {!field && trip.ready && trip.results !== "current" ? (
         <div className="mt-2 flex items-center gap-2">
           <button type="button" disabled={busy || checking} onClick={onCompare}
-            className="min-h-10 rounded-lg bg-firouzeh px-4 text-sm font-medium text-white hover:bg-firouzeh-deep disabled:opacity-60">
+            className="min-h-10 whitespace-nowrap rounded-lg bg-firouzeh px-4 text-sm font-medium text-white hover:bg-firouzeh-deep disabled:opacity-60">
             {checking ? "در حال جست‌وجو در MrBilit…" : trip.results === "outdated" ? "جست‌وجوی دوباره با شرایط تازه" : "جست‌وجو با همین شرایط"}
           </button>
-          {trip.results === "outdated" ? <span className="text-xs text-ink-soft">نتایج قبلی با شرایط قبلی بود.</span> : null}
+          {trip.results === "outdated" ? <span className="hidden text-xs text-ink-soft sm:inline">نتایج قبلی با شرایط قبلی بود.</span> : null}
         </div>
       ) : null}
     </section>
