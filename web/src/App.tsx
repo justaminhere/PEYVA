@@ -86,9 +86,10 @@ function Message({ m }: { m: Msg }) {
           ))}
         </ul>
       ) : null}
+      {/* The comparison comes first: the agent's text refers to it ("the table above"), as in the terminal. */}
+      {m.cards ? <div className="mb-4"><ResultTickets cards={m.cards} /></div> : null}
       {text ? <p className={`whitespace-pre-line ${m.streaming && !m.text ? "caret" : ""}`}>{text}</p>
         : m.streaming ? <p className="caret text-ink-soft">پیوا در حال کار است</p> : null}
-      {m.cards ? <ResultTickets cards={m.cards} /> : null}
       {m.warnings.map((w) => <p key={w} className="mt-2 border-s-4 border-saffron ps-3 text-sm">{w}</p>)}
       {m.error ? <p role="alert" className="mt-2 border-s-4 border-anar ps-3 text-sm">{m.error}</p> : null}
     </article>

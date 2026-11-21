@@ -108,7 +108,7 @@ All test runs below use a real embedded PostgreSQL 18 and recorded MrBilit data.
 
 ## 6. End-to-end on the developer machine
 
-See `docs/PHASE4A_E2E_VERIFICATION.md`. Result: CONDITIONAL GO. The real browser, PostgreSQL, MrBilit (worker), approvals and restart/resume are verified. The full real-LLM conversation was not verified, because the Groq daily quota was exhausted.
+See `docs/PHASE4A_E2E_VERIFICATION.md`. Result: **GO** (run 2, 2026-11-21): the full real-LLM conversation, monitoring approval and restart recovery all ran in the browser with real data.
 
 ## 7. Limitations
 
