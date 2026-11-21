@@ -4,7 +4,7 @@ import { OpenAICompatibleClient } from "../src/llm/openai-compatible.ts";
 import { loadLlmConfig, describeLlm } from "../src/config.ts";
 import { CHAT_TOOL_SPECS as TOOL_SPECS } from "../src/agent/tools.ts";
 
-let mode: "tool" | "text" | "401" | "429" | "garbage" | "slow" = "tool";
+let mode: "tool" | "text" | "401" | "403" | "429" | "garbage" | "slow" = "tool";
 let lastBody: any = null, lastAuth: string | null = null;
 const server = Bun.serve({
   port: 0,
@@ -12,6 +12,7 @@ const server = Bun.serve({
     lastAuth = req.headers.get("authorization");
     lastBody = await req.json();
     if (mode === "401") return Response.json({ error: { message: "bad key" } }, { status: 401 });
+    if (mode === "403") return Response.json({ error: { message: "Access denied" } }, { status: 403 });
     if (mode === "429") return Response.json({ error: { message: "slow down" } }, { status: 429 });
     if (mode === "garbage") return Response.json({ nope: true });
     if (mode === "slow") { await Bun.sleep(3000); return Response.json({}); }
@@ -50,6 +51,7 @@ test("round-trips assistant tool calls and tool results in the next request", as
 
 test("maps auth, rate limit, malformed and timeout errors", async () => {
   mode = "401"; expect(await client.complete([{ role: "user", content: "x" }], [])).toMatchObject({ ok: false, cause: "auth" });
+  mode = "403"; expect(await client.complete([{ role: "user", content: "x" }], [])).toMatchObject({ ok: false, cause: "forbidden" }); // e.g. region blocked
   mode = "429"; expect(await client.complete([{ role: "user", content: "x" }], [])).toMatchObject({ ok: false, cause: "rate_limit" });
   mode = "garbage"; expect(await client.complete([{ role: "user", content: "x" }], [])).toMatchObject({ ok: false, cause: "malformed" });
   mode = "slow"; expect(await client.complete([{ role: "user", content: "x" }], [])).toMatchObject({ ok: false, cause: "timeout" });

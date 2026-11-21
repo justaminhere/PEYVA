@@ -100,7 +100,9 @@ export function mapError(e: unknown): LlmResponse {
   const msg = (e as Error)?.message?.slice(0, 300) ?? String(e);
   if (e instanceof OpenAI.APIConnectionTimeoutError) return { ok: false, cause: "timeout", message: msg };
   if (e instanceof OpenAI.APIConnectionError) return { ok: false, cause: "network", message: msg };
-  if (e instanceof OpenAI.AuthenticationError || e instanceof OpenAI.PermissionDeniedError) return { ok: false, cause: "auth", message: msg };
+  if (e instanceof OpenAI.AuthenticationError) return { ok: false, cause: "auth", message: msg }; // 401: the key itself
+  // 403: the key is known but this request is refused, e.g. a model it may not use, or a region the provider blocks.
+  if (e instanceof OpenAI.PermissionDeniedError) return { ok: false, cause: "forbidden", message: msg };
   if (e instanceof OpenAI.RateLimitError) return { ok: false, cause: "rate_limit", message: msg };
   if (e instanceof OpenAI.BadRequestError || e instanceof OpenAI.NotFoundError || e instanceof OpenAI.UnprocessableEntityError) return { ok: false, cause: "bad_request", message: msg };
   if (e instanceof OpenAI.APIError) return { ok: false, cause: "provider", message: msg };

@@ -97,7 +97,13 @@ if (PUBLIC) {
 const app = createApp({
   ...mode, llm, ctx: runtime, store,
   info: { llm: describeLlm(cfg.llm), telegram: !PUBLIC && runtime.telegramEnabled, db: PUBLIC ? "PostgreSQL" : runtime.dbLabel, mode: PUBLIC ? "public" : "local" },
-  log: (e) => void log.write(e),
+  log: (e) => {
+    void log.write(e);
+    // On a platform the session file is inside the container; failures also go to stdout (no key, no user text).
+    const err = (e as { llmError?: string | null }).llmError;
+    // Long token-like runs are hidden in case a provider echoes part of a key in its error text.
+    if (PUBLIC && e.type === "turn" && err) console.error(`llm error · ${describeLlm(cfg.llm)} · ${err.slice(0, 240).replace(/[A-Za-z0-9_\-]{24,}/g, "***")}`);
+  },
 });
 
 const dist = join(import.meta.dir, "..", "..", "web", "dist");
