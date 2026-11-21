@@ -29,7 +29,7 @@ export interface TripView {
 /** What every action returns: the parts of the screen that may have changed, from the server. */
 export interface Snapshot { pending: PendingView; trip: TripView; goals: GoalView[]; unreadAlerts: number }
 export interface StateView extends Snapshot {
-  userId: string; info: { llm: string; telegram: boolean; db: string } | null;
+  userId: string; info: { llm: string; telegram: boolean; db: string; mode?: "local" | "public" } | null; limitsFa?: string | null;
   transcript: { id: number; role: "user" | "assistant"; text: string }[]; resumed: { savedAtFa: string } | null; cards: ComparisonCards | null;
 }
 export interface ToolEventView { type: string; textFa: string }

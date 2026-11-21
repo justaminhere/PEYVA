@@ -31,7 +31,7 @@ export function createApi(fetchFn: FetchFn = (input, init) => fetch(input, init)
       const res = await fetchFn("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
-        throw new ApiError((data as { error?: string }).error ?? `HTTP ${res.status}`, res.status, data);
+        throw new ApiError((data as { errorFa?: string; error?: string }).errorFa ?? (data as { error?: string }).error ?? `HTTP ${res.status}`, res.status, data);
       }
       for await (const m of readSse(res.body)) onEvent({ event: m.event, data: JSON.parse(m.data) });
     },

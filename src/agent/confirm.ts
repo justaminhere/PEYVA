@@ -41,6 +41,14 @@ export async function resolvePending(s: Session, text: string): Promise<string |
 }
 
 /** The single approval path (text "بله"/"نه" or a UI button): executes the database operation, replies from its result. */
+/** Persian text for GoalService's "limit" failure (detail "user:N" or "total:N"). */
+export function limitFa(detail?: string): string {
+  const [scope, n] = (detail ?? "").split(":");
+  return scope === "total"
+    ? `ظرفیت پیگیری در این نسخهٔ آزمایشی فعلاً پر است (حداکثر ${toPersianDigits(Number(n) || 0)} پیگیری همزمان برای همه). بعداً دوباره امتحان کن.`
+    : `حداکثر ${toPersianDigits(Number(n) || 0)} پیگیری فعال همزمان داری؛ برای فعال کردن این یکی، یکی از قبلی‌ها را لغو کن.`;
+}
+
 export async function decidePending(s: Session, approve: boolean): Promise<string | null> {
   const p = s.pending;
   const pers = s.persistence;
@@ -63,7 +71,7 @@ export async function decidePending(s: Session, approve: boolean): Promise<strin
       return r.ok ? `باشه، پیگیری فعال نشد (پیش‌نویس #${toPersianDigits(p.goalId)} لغو شد).` : `پیش‌نویس فعال نشد. (وضعیت: ${r.reason})`;
     }
     const r = await pers.goals.approve(s.userId, p.goalId, p.hash, now);
-    if (!r.ok) return `پیگیری فعال نشد: ${r.reason === "stale_approval" ? "شرایط از زمان نمایش تغییر کرده؛ دوباره بررسی کن." : r.reason}`;
+    if (!r.ok) return `پیگیری فعال نشد: ${r.reason === "stale_approval" ? "شرایط از زمان نمایش تغییر کرده؛ دوباره بررسی کن." : r.reason === "limit" ? limitFa(r.detail) : r.reason}`;
     const g = r.goal; // persisted state
     const first = `اولین بررسی: ${g.nextCheckAt ? tehranDateTime(g.nextCheckAt) : "؟"} به وقت تهران`;
     if (s.surface === "web") return `پیگیری فعال شد ✅ (هدف #${toPersianDigits(g.id)}، وضعیت ذخیره‌شده: فعال).\n${first}؛ بررسی‌ها فقط وقتی انجام می‌شوند که worker پیوا روشن باشد.`;

@@ -1,0 +1,18 @@
+# Never send secrets, local data or logs to an image build.
+.env
+.env.*
+!.env.example
+*.local
+.git
+.pgdata
+output
+**/output
+node_modules
+**/node_modules
+web/dist
+evidence
+**/evidence
+docs
+test
+web/test
+*.sensitive.*

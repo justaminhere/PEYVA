@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
-import type { Api, ChatEvent } from "./api.ts";
+import { ApiError, type Api, type ChatEvent } from "./api.ts";
 import type { ComparisonCards, GoalView, Snapshot, StateView, TripFieldKey } from "./types.ts";
 import { ResultTickets } from "./ui/Results.tsx";
 import { Brief } from "./ui/Brief.tsx";
@@ -16,7 +16,10 @@ export interface Msg {
   activityGoalId: number | null;
 }
 const EMPTY_SNAP: Snapshot = { pending: null, trip: { empty: true, ready: false, fields: [], missingFa: [], conflictsFa: [], assumptionsFa: [], results: "none", monitoredBy: null }, goals: [], unreadAlerts: 0 };
-interface State { msgs: Msg[]; snap: Snapshot; info: StateView["info"]; resumed: StateView["resumed"]; busy: boolean; loaded: boolean; loadError: string | null }
+/** The server's own Persian explanation of a refused request (quotas, limits), if it gave one. */
+const serverFa = (e: unknown): string | null => (e instanceof ApiError && typeof e.body?.errorFa === "string" ? e.body.errorFa : null);
+
+interface State { msgs: Msg[]; snap: Snapshot; info: StateView["info"]; limitsFa: string | null; resumed: StateView["resumed"]; busy: boolean; loaded: boolean; loadError: string | null }
 
 const TOOL_FA: Record<string, string> = {
   update_trip_goal: "ثبت جزئیات سفر", compare_trip_options: "مقایسهٔ گزینه‌ها", start_monitoring: "آماده‌کردن شرایط پیگیری",
@@ -45,7 +48,7 @@ function reducer(s: State, a: Action): State {
       const last = [...msgs].reverse().find((m) => m.role === "assistant");
       if (last && a.s.cards) last.cards = a.s.cards;
       const { pending, trip, goals, unreadAlerts } = a.s;
-      return { ...s, msgs, snap: { pending, trip, goals, unreadAlerts }, info: a.s.info, resumed: a.s.resumed, loaded: true, loadError: null };
+      return { ...s, msgs, snap: { pending, trip, goals, unreadAlerts }, info: a.s.info, limitsFa: a.s.limitsFa ?? null, resumed: a.s.resumed, loaded: true, loadError: null };
     }
     case "load_failed": return { ...s, loaded: true, loadError: a.error };
     case "send": return { ...s, busy: true, msgs: [...s.msgs, newMsg("user", a.text), newMsg("assistant", "", { streaming: true })] };
@@ -127,14 +130,15 @@ function Message({ m, goals, actions }: { m: Msg; goals: GoalView[]; actions: Go
 }
 
 export function App({ api }: { api: Api }) {
-  const [s, dispatch] = useReducer(reducer, { msgs: [], snap: EMPTY_SNAP, info: null, resumed: null, busy: false, loaded: false, loadError: null });
+  const [s, dispatch] = useReducer(reducer, { msgs: [], snap: EMPTY_SNAP, info: null, limitsFa: null, resumed: null, busy: false, loaded: false, loadError: null });
   const [draft, setDraft] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [showActivities, setShowActivities] = useState(false);
 
-  useEffect(() => { api.state().then((st) => dispatch({ t: "loaded", s: st }), (e: Error) => dispatch({ t: "load_failed", error: e.message })); }, [api]);
+  useEffect(() => { api.state().then((st) => dispatch({ t: "loaded", s: st }), (e: Error) => dispatch({ t: "load_failed",
+    error: serverFa(e) ?? `سرور پیوا در دسترس نیست (${e.message}). آن را با bun run peyva:web اجرا کن.` })); }, [api]);
   // New messages and a newly shown approval panel scroll into view (the sticky composer would otherwise cover them).
   useEffect(() => { if (s.msgs.length || s.snap.pending) window.scrollTo?.({ top: document.documentElement.scrollHeight }); }, [s.msgs, s.snap.pending]);
   // Persistent activities change on their own (the worker): refresh from PostgreSQL while the page is visible.
@@ -158,7 +162,11 @@ export function App({ api }: { api: Api }) {
     setDraft("");
     dispatch({ t: "send", text: t });
     try { await api.chat(t, (e) => dispatch({ t: "event", e })); dispatch({ t: "end" }); }
-    catch (e) { dispatch({ t: "fail", error: `ارتباط با سرور پیوا قطع شد: ${(e as Error).message}` }); }
+    catch (e) {
+      const fa = serverFa(e);
+      if (fa) setDraft(t); // refused before it started (a quota): keep the text so it can be sent later
+      dispatch({ t: "fail", error: fa ?? `ارتباط با سرور پیوا قطع شد: ${(e as Error).message}` });
+    }
   }
   async function decide(approve: boolean) {
     const p = s.snap.pending;
@@ -235,13 +243,14 @@ export function App({ api }: { api: Api }) {
             <button type="button" onClick={reset} disabled={busy} className="min-h-10 rounded-md px-3 text-sm text-lapis hover:bg-paper disabled:opacity-50">گفتگوی تازه</button>
           </div>
         </header>
+        {s.limitsFa ? <p role="note" className="mb-4 rounded-md bg-paper px-3 py-2 text-sm text-ink-soft">{s.limitsFa}</p> : null}
         {showActivities ? (
           <section id="activities-mobile" aria-label="کارهای در جریان پیوا" className="mb-4 rounded-xl border border-line bg-paper p-4 lg:hidden">
             <Activities goals={s.snap.goals} actions={actions} />
           </section>
         ) : null}
         <main className="flex-1 space-y-6 pb-6">
-          {s.loadError ? <p role="alert" className="border-s-4 border-anar ps-3">سرور پیوا در دسترس نیست ({s.loadError}). آن را با <bdi dir="ltr">bun run peyva:web</bdi> اجرا کن.</p> : null}
+          {s.loadError ? <p role="alert" className="border-s-4 border-anar ps-3">{s.loadError}</p> : null}
           {s.loaded && !s.msgs.length && !s.loadError ? (
             <div className="pt-8">
               <p className="max-w-[58ch] text-lg leading-9">بگو کجا می‌خواهی بروی. پیوا پرواز و هتل را در MrBilit جست‌وجو می‌کند، جمع هزینه را دقیق حساب می‌کند و اگر بخواهی، قیمت را برایت زیر نظر می‌گیرد.</p>

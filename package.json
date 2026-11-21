@@ -18,7 +18,9 @@
     "web:build": "bun --bun vite build --config web/vite.config.ts",
     "web:dev": "bun --bun vite --config web/vite.config.ts",
     "peyva:web": "bun run src/web/server.ts",
-    "peyva:llm-check": "bun run src/cli/llm-check.ts"
+    "peyva:llm-check": "bun run src/cli/llm-check.ts",
+    "check:secrets": "bash scripts/check-secrets.sh",
+    "peyva:public": "PEYVA_PUBLIC=1 bun run src/web/server.ts"
   },
   "dependencies": {
     "@fontsource/lalezar": "5.3.0",

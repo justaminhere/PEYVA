@@ -2,7 +2,7 @@
  * PEYVA local web API (Hono). Loopback only, single user, no CORS. Everything the UI shows comes from the agent core,
  * the deterministic comparison engine or PostgreSQL; this file only adapts them to HTTP and Server-Sent Events.
  */
-import { Hono, type MiddlewareHandler } from "hono";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { LlmClient } from "../llm/types.ts";
@@ -21,10 +21,28 @@ import { analyze } from "../goal/state.ts";
 import { parseAmount, toToman } from "../goal/persian.ts";
 import type { Session } from "../agent/session.ts";
 import { saveSession } from "../memory/session-state.ts";
-import { tehranDateTime } from "../agent/confirm.ts";
+import { limitFa, tehranDateTime } from "../agent/confirm.ts";
+
+/** Whose request this is: their agent session (serialized) and their services, scoped to their userId. */
+export interface Visitor { host: AgentHost; ctx: CommandContext }
+type Env = { Variables: { v: Visitor } };
+
+/** Public MVP quotas (src/web/public.ts). The local single-user app has none. */
+export interface WebLimits {
+  /** Before an LLM turn. On success call done(tokens) exactly once when the turn is over (also on failure). */
+  beginTurn(userId: string): { ok: true; done: (tokens: number) => void } | { ok: false; status: 429 | 503; errorFa: string };
+  /** Before a search started with the app's controls (no LLM). */
+  beginSearch(userId: string): { ok: true } | { ok: false; status: 429; errorFa: string };
+  /** Shown in the UI: what this public test version allows. */
+  summaryFa: string;
+}
 
 export interface WebDeps {
-  host: AgentHost;
+  /** Local mode: the one session of the one user. Public mode passes `visitor` instead. */
+  host?: AgentHost;
+  /** Public mode: resolves the visitor from the request (signed cookie), or answers it (e.g. too many new visitors). */
+  visitor?: (c: Context) => Promise<Visitor | Response>;
+  limits?: WebLimits;
   llm: LlmClient;
   ctx: CommandContext;
   store: ConversationStore;
@@ -32,7 +50,7 @@ export interface WebDeps {
   allowedHosts: string[];
   /** Exact Origin values accepted on state-changing requests. */
   allowedOrigins: string[];
-  info?: { llm: string; telegram: boolean; db: string };
+  info?: { llm: string; telegram: boolean; db: string; mode?: "local" | "public" };
   /** Session log (output/sessions), same fields as the terminal chat. */
   log?: (e: Record<string, unknown>) => void;
   now?: () => Date;
@@ -45,7 +63,8 @@ const ApprovalBody = z.object({ decision: z.enum(["approve", "reject"]), goalId:
 export function localOnly(allowedHosts: string[], allowedOrigins: string[]): MiddlewareHandler {
   return async (c, next) => {
     const host = c.req.header("host") ?? "";
-    if (!allowedHosts.includes(host)) return c.json({ error: "host not allowed" }, 403);
+    // The platform's health check may use an internal Host; /api/health reveals nothing.
+    if (!allowedHosts.includes(host) && !(c.req.method === "GET" && c.req.path === "/api/health")) return c.json({ error: "host not allowed" }, 403);
     if (c.req.method !== "GET" && c.req.method !== "HEAD") {
       const origin = c.req.header("origin");
       if (origin !== undefined && !allowedOrigins.includes(origin)) return c.json({ error: "origin not allowed" }, 403);
@@ -66,16 +85,25 @@ const ProposeBody = z.object({ budget: z.string().trim().min(1).max(40).optional
 
 export function createApp(d: WebDeps) {
   const now = d.now ?? (() => new Date());
-  const app = new Hono();
+  const app = new Hono<Env>();
   app.use("*", localOnly(d.allowedHosts, d.allowedOrigins));
+  if (!d.visitor && !d.host) throw new Error("createApp needs host (local) or visitor (public)");
+  app.use("/api/*", async (c, next) => {
+    if (c.req.path === "/api/health") return next();
+    const v = d.visitor ? await d.visitor(c) : { host: d.host!, ctx: d.ctx };
+    if (v instanceof Response) return v;
+    c.set("v", v);
+    await next();
+  });
+  const V = (c: Context<Env>) => c.get("v");
 
   app.get("/api/health", (c) => c.json({ ok: true }));
 
   /** Everything that can change after any action, read from the session and PostgreSQL. */
-  const snapshot = async (s: Session) => {
-    const rows = await d.ctx.goals.list(d.ctx.userId);
-    return { pending: await pendingView(s, d.ctx), trip: tripView(s, rows), goals: await Promise.all(rows.map((g) => goalView(d.ctx, g))),
-      unreadAlerts: await d.ctx.notifications.unreadCount(d.ctx.userId) };
+  const snapshot = async (ctx: CommandContext, s: Session) => {
+    const rows = await ctx.goals.list(ctx.userId);
+    return { pending: await pendingView(s, ctx), trip: tripView(s, rows), goals: await Promise.all(rows.map((g) => goalView(ctx, g))),
+      unreadAlerts: await ctx.notifications.unreadCount(ctx.userId) };
   };
   /** Records an action done with the app's controls in the transcript (shown on reload) and in the LLM's context. */
   const note = async (s: Session, userText: string) => {
@@ -84,36 +112,40 @@ export function createApp(d: WebDeps) {
     if (conv) await d.store.add(s.userId, conv, "user", userText, now());
   };
 
-  app.get("/api/state", async (c) => c.json(await d.host.run(async (s) => {
+  app.get("/api/state", async (c) => c.json(await V(c).host.run(async (s) => {
     const conv = s.persistence?.conversationId ?? null;
     const transcript = conv ? (await d.store.recent(s.userId, conv, 50)).map((m) => ({ id: m.id, role: m.role, text: m.content })) : [];
     return {
-      userId: s.userId, info: d.info ?? null, goal: s.goalSummary(), transcript,
+      userId: s.userId, info: d.info ?? null, limitsFa: d.limits?.summaryFa ?? null, goal: s.goalSummary(), transcript,
       resumed: s.resumedFrom ? { savedAtFa: tehranDateTime(s.resumedFrom.savedAt) } : null,
-      cards: s.lastComparison ? comparisonCards(s.lastComparison, now()) : null, ...(await snapshot(s)),
+      cards: s.lastComparison ? comparisonCards(s.lastComparison, now()) : null, ...(await snapshot(V(c).ctx, s)),
     };
   })));
 
   app.post("/api/chat", async (c) => {
     const body = ChatBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "text (1..2000 characters) is required" }, 400);
+    const turn = d.limits?.beginTurn(V(c).ctx.userId) ?? { ok: true as const, done: () => {} };
+    if (!turn.ok) return c.json({ errorFa: turn.errorFa }, turn.status);
+    let tokens = 0;
     return streamSSE(c, async (sse) => {
       const send = (event: string, data: unknown) => sse.writeSSE({ event, data: JSON.stringify(data) });
       // Comment pings keep proxies and idle timeouts from closing a long turn (searches can take tens of seconds).
       const ping = setInterval(() => { void sse.write(": ping\n\n").catch(() => {}); }, 8_000);
       try {
-        await d.host.run(async (s) => {
+        await V(c).host.run(async (s) => {
           await send("accepted", { text: body.data.text });
           const pendingGoal = s.pending?.kind === "goal" ? s.pending.goalId : null;
           const queue: Promise<unknown>[] = [];
           const q = (p: Promise<unknown>) => { queue.push(p); };
-          const h = await handleMessage(s, d.llm, body.data.text, { commands: d.ctx, store: d.store, hooks: {
+          const h = await handleMessage(s, d.llm, body.data.text, { commands: V(c).ctx, store: d.store, hooks: {
             onLlmCall: (i) => q(send("llm", { iteration: i })),
             onTextDelta: (t, i) => q(send("delta", { iteration: i, text: t })),
             onToolStart: (name) => q(send("tool_start", { name })),
             onToolDone: (name, ok, events) => q(send("tool_done", { name, ok, events: events.map(eventView) })),
           } });
           await Promise.all(queue);
+          tokens = (h.turn?.llmCalls ?? []).reduce((n, x) => n + (x.usage?.prompt ?? 0) + (x.usage?.completion ?? 0), 0);
           await saveSession(s, d.store); // structured working state, so a restarted server can continue this conversation
           if (h.turn?.newComparison && s.lastComparison) await send("cards", comparisonCards(s.lastComparison, now()));
           // The approval question is shown by the UI's approval card (from `state.pending`), so it is not repeated here.
@@ -121,12 +153,13 @@ export function createApp(d: WebDeps) {
             activityGoalId: h.source === "approval" && pendingGoal && !s.pending ? pendingGoal : null });
           d.log?.({ type: "turn", user: body.data.text, reply: h.reply, source: h.source, toolCalls: h.turn?.toolCalls, llmCalls: h.turn?.llmCalls,
             warnings: h.turn?.warnings, llmError: h.turn?.llmError, durationMs: h.turn?.durationMs, goal: s.goalSummary() });
-          await send("state", { goal: s.goalSummary(), ...(await snapshot(s)) });
+          await send("state", { goal: s.goalSummary(), ...(await snapshot(V(c).ctx, s)) });
         });
       } catch (e) {
         await send("error", { message: `خطای داخلی: ${(e as Error).message.slice(0, 200)}` });
       } finally {
         clearInterval(ping);
+        turn.done(tokens);
         await send("done", {});
       }
     });
@@ -135,7 +168,7 @@ export function createApp(d: WebDeps) {
   app.post("/api/approval", async (c) => {
     const body = ApprovalBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "decision must be approve or reject" }, 400);
-    return d.host.run(async (s) => {
+    return V(c).host.run(async (s) => {
       const p = s.pending;
       if (!p) return c.json({ error: "nothing is waiting for approval" }, 409);
       // The button must refer to what is pending now (a stale screen must not approve something else).
@@ -149,7 +182,7 @@ export function createApp(d: WebDeps) {
         await d.store.add(s.userId, conv, "user", body.data.decision === "approve" ? "(دکمهٔ تأیید)" : "(دکمهٔ رد)", now());
         await d.store.add(s.userId, conv, "assistant", reply, now());
       }
-      return c.json({ reply, activityGoalId: goalId, ...(await snapshot(s)) });
+      return c.json({ reply, activityGoalId: goalId, ...(await snapshot(V(c).ctx, s)) });
     });
   });
 
@@ -157,28 +190,30 @@ export function createApp(d: WebDeps) {
   app.post("/api/trip", async (c) => {
     const body = TripEditSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ errorFa: "این مقدار معتبر نیست." }, 400);
-    return d.host.run(async (s) => {
+    return V(c).host.run(async (s) => {
       const r = applyTripEdit(s, body.data);
       if (!r.ok) return c.json({ errorFa: r.errorFa }, 400);
-      if (!r.changed) return c.json({ changeFa: null, ...(await snapshot(s)) }); // same value again: nothing to record
+      if (!r.changed) return c.json({ changeFa: null, ...(await snapshot(V(c).ctx, s)) }); // same value again: nothing to record
       await note(s, `✎ ${r.changeFa}`);
       await saveSession(s, d.store);
-      return c.json({ changeFa: r.changeFa, ...(await snapshot(s)) });
+      return c.json({ changeFa: r.changeFa, ...(await snapshot(V(c).ctx, s)) });
     });
   });
 
   /** Re-runs the deterministic comparison for the current goal (real, read-only searches; no LLM call). */
-  app.post("/api/compare", async (c) => d.host.run(async (s) => {
+  app.post("/api/compare", async (c) => V(c).host.run(async (s) => {
+    const lim = d.limits?.beginSearch(V(c).ctx.userId);
+    if (lim && !lim.ok) return c.json({ errorFa: lim.errorFa, ...(await snapshot(V(c).ctx, s)) }, lim.status);
     const a = analyze(s.goal, s.now());
-    if (!a.ready) return c.json({ errorFa: "هدف هنوز کامل نیست.", ...(await snapshot(s)) }, 409);
+    if (!a.ready) return c.json({ errorFa: "هدف هنوز کامل نیست.", ...(await snapshot(V(c).ctx, s)) }, 409);
     s.turnSearches = 0;
     const out = await new ToolRunner(s, { autoCompare: false }).run("compare_trip_options", "{}");
-    if (!out.ok || !s.lastComparison) return c.json({ errorFa: "جست‌وجو انجام نشد.", events: out.events.map(eventView), ...(await snapshot(s)) }, 502);
+    if (!out.ok || !s.lastComparison) return c.json({ errorFa: "جست‌وجو انجام نشد.", events: out.events.map(eventView), ...(await snapshot(V(c).ctx, s)) }, 502);
     s.messages.push({ role: "assistant", content: "(برنامه با شرایط فعلی جست‌وجو کرد و جدول تازه را نشان داد.)" });
     const conv = s.persistence?.conversationId;
     if (conv) await d.store.add(s.userId, conv, "assistant", "نتایج با شرایط فعلی بررسی شد.", now());
     await saveSession(s, d.store);
-    return c.json({ cards: comparisonCards(s.lastComparison, now()), events: out.events.map(eventView), ...(await snapshot(s)) });
+    return c.json({ cards: comparisonCards(s.lastComparison, now()), events: out.events.map(eventView), ...(await snapshot(V(c).ctx, s)) });
   }));
 
   /** Proposes new conditions for a monitored goal. Nothing changes until the user approves in the approval panel. */
@@ -186,10 +221,10 @@ export function createApp(d: WebDeps) {
     const id = Number(c.req.param("id"));
     const body = ProposeBody.safeParse(await c.req.json().catch(() => null));
     if (!Number.isInteger(id) || !body.success) return c.json({ errorFa: "تغییر معتبر نیست." }, 400);
-    return d.host.run(async (s) => {
+    return V(c).host.run(async (s) => {
       if (s.pending && !(s.pending.kind === "goal" && s.pending.goalId === id)) return c.json({ errorFa: "اول به تأییدی که منتظر است جواب بده." }, 409);
-      const g = await d.ctx.goals.get(d.ctx.userId, id);
-      const ex = g && d.ctx.registry.get(g.type);
+      const g = await V(c).ctx.goals.get(V(c).ctx.userId, id);
+      const ex = g && V(c).ctx.registry.get(g.type);
       const cur = g && ex?.schema.safeParse(g.structuredConstraints);
       if (!g || !ex || !cur?.success) return c.json({ errorFa: "هدفی با این شماره نیست." }, 404);
       const next: Record<string, unknown> = { ...(cur.data as object) };
@@ -199,37 +234,37 @@ export function createApp(d: WebDeps) {
         next.budgetToman = toToman(p).toman;
       }
       if (body.data.stars !== undefined) next.minimumHotelStars = body.data.stars || null;
-      const r = await d.ctx.goals.updateConstraints(d.ctx.userId, id, next, now());
+      const r = await V(c).ctx.goals.updateConstraints(V(c).ctx.userId, id, next, now());
       if (!r.ok) return c.json({ errorFa: r.reason === "wrong_state" ? "این هدف دیگر قابل تغییر نیست." : `تغییر ثبت نشد (${r.reason}).` }, 409);
-      if (!r.changed) return c.json({ unchanged: true, ...(await snapshot(s)) });
+      if (!r.changed) return c.json({ unchanged: true, ...(await snapshot(V(c).ctx, s)) });
       s.pending = { kind: "goal", goalId: id, hash: r.hash, summaryFa: r.summaryFa, change: r.proposal };
       await saveSession(s, d.store);
-      return c.json({ ...(await snapshot(s)) });
+      return c.json({ ...(await snapshot(V(c).ctx, s)) });
     });
   });
 
-  app.post("/api/notifications/read", async (c) => d.host.run(async (s) => {
-    await d.ctx.notifications.markRead(d.ctx.userId);
-    return c.json(await snapshot(s));
+  app.post("/api/notifications/read", async (c) => V(c).host.run(async (s) => {
+    await V(c).ctx.notifications.markRead(V(c).ctx.userId);
+    return c.json(await snapshot(V(c).ctx, s));
   }));
 
-  app.get("/api/goals", async (c) => c.json({ goals: await goalViews(d.ctx) }));
+  app.get("/api/goals", async (c) => c.json({ goals: await goalViews(V(c).ctx) }));
   /** Light refresh of the agent's persistent activities (polled by the UI while visible). Reads PostgreSQL only. */
-  app.get("/api/activity", async (c) => c.json({ goals: await goalViews(d.ctx), unreadAlerts: await d.ctx.notifications.unreadCount(d.ctx.userId) }));
+  app.get("/api/activity", async (c) => c.json({ goals: await goalViews(V(c).ctx), unreadAlerts: await V(c).ctx.notifications.unreadCount(V(c).ctx.userId) }));
   app.get("/api/goals/:id", async (c) => {
     const id = Number(c.req.param("id"));
-    const g = Number.isInteger(id) ? await d.ctx.goals.get(d.ctx.userId, id) : null;
-    return g ? c.json({ goal: await goalView(d.ctx, g) }) : c.json({ error: "not found" }, 404);
+    const g = Number.isInteger(id) ? await V(c).ctx.goals.get(V(c).ctx.userId, id) : null;
+    return g ? c.json({ goal: await goalView(V(c).ctx, g) }) : c.json({ error: "not found" }, 404);
   });
   app.post("/api/goals/:id/:action{pause|resume|cancel}", async (c) => {
     const id = Number(c.req.param("id"));
     if (!Number.isInteger(id)) return c.json({ error: "bad id" }, 400);
     const a = c.req.param("action");
-    const r = a === "pause" ? await d.ctx.goals.pause(d.ctx.userId, id) : a === "resume" ? await d.ctx.goals.resume(d.ctx.userId, id) : await d.ctx.goals.cancel(d.ctx.userId, id);
-    if (!r.ok) return c.json({ error: r.reason }, r.reason === "not_found" ? 404 : 409);
-    return c.json({ goal: await goalView(d.ctx, r.goal), goals: await goalViews(d.ctx) });
+    const r = a === "pause" ? await V(c).ctx.goals.pause(V(c).ctx.userId, id) : a === "resume" ? await V(c).ctx.goals.resume(V(c).ctx.userId, id) : await V(c).ctx.goals.cancel(V(c).ctx.userId, id);
+    if (!r.ok) return c.json({ error: r.reason, ...(r.reason === "limit" ? { errorFa: limitFa(r.detail) } : {}) }, r.reason === "not_found" ? 404 : 409);
+    return c.json({ goal: await goalView(V(c).ctx, r.goal), goals: await goalViews(V(c).ctx) });
   });
 
-  app.post("/api/reset", async (c) => { await d.host.reset(); return c.json({ ok: true }); });
+  app.post("/api/reset", async (c) => { await V(c).host.reset(); return c.json({ ok: true }); });
   return app;
 }

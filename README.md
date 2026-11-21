@@ -15,6 +15,10 @@ bun run peyva:goals help        # goals, notifications, preferences and Telegram
 bun run test && bun run typecheck
 ```
 
+## Public MVP (online)
+
+`PEYVA_PUBLIC=1` turns the web app into a multi-visitor demo: anonymous signed cookies, per-visitor data, daily quotas and the worker in the same process. It is deployed with `Dockerfile` + `render.yaml`, not GitHub Pages: PEYVA needs a server. Run `bun run check:secrets` before every push. See [docs/DEPLOY_MVP.md](docs/DEPLOY_MVP.md).
+
 ## Docs
 
 - `docs/TRAVEL_MCP_FEASIBILITY.md`, `docs/TRAVEL_MCP_READINESS.md`: Phase 1 / 1.5 provider research
@@ -22,3 +26,4 @@ bun run test && bun run typecheck
 - `docs/PHASE3_PERSISTENT_AGENT.md`: memory, goals, worker and notifications
 - `docs/PHASE4A_WEB_FOUNDATION.md`, `docs/PHASE4A_E2E_VERIFICATION.md`: local chat-first web app and its live verification
 - `docs/PHASE4B_AI_NATIVE_UX.md`: UX audit, goal brief, comparison, activities, browser walkthrough
+- `docs/DEPLOY_MVP.md`: public MVP mode, Render deployment, quotas, security notes

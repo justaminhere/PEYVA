@@ -15,7 +15,10 @@ import { goalChecks, goals, type GoalStatus } from "../db/schema.ts";
 import type { ExecutorRegistry } from "./types.ts";
 
 export type Goal = typeof goals.$inferSelect;
-export type Fail = { ok: false; reason: "not_found" | "invalid_constraints" | "unknown_type" | "wrong_state" | "stale_approval" | "expired"; detail?: string };
+export type Fail = { ok: false; reason: "not_found" | "invalid_constraints" | "unknown_type" | "wrong_state" | "stale_approval" | "expired" | "limit"; detail?: string };
+
+/** Optional caps on goals that run at the same time (the public MVP sets them; the local app has none). */
+export interface GoalLimits { maxActivePerUser?: number; maxActiveTotal?: number }
 
 /** Stable JSON (sorted keys) so that the same constraints always give the same hash. */
 export function canonical(v: unknown): string {
@@ -28,7 +31,17 @@ export const constraintsHash = (c: unknown) => createHash("sha256").update(canon
 const FINAL: GoalStatus[] = ["canceled", "expired"];
 
 export class GoalService {
-  constructor(private db: Db, private registry: ExecutorRegistry) {}
+  constructor(private db: Db, private registry: ExecutorRegistry, private limits: GoalLimits = {}) {}
+
+  /** null when one more goal may become active, else the "limit" failure (detail: which cap, and its size). */
+  private async overLimit(userId: string): Promise<Fail | null> {
+    const { maxActivePerUser: perUser, maxActiveTotal: total } = this.limits;
+    if (perUser === undefined && total === undefined) return null;
+    const count = async (where: ReturnType<typeof eq>) => Number((await this.db.select({ n: sql<number>`count(*)` }).from(goals).where(where))[0]?.n ?? 0);
+    if (perUser !== undefined && await count(and(eq(goals.userId, userId), eq(goals.status, "active"))!) >= perUser) return { ok: false, reason: "limit", detail: `user:${perUser}` };
+    if (total !== undefined && await count(eq(goals.status, "active")) >= total) return { ok: false, reason: "limit", detail: `total:${total}` };
+    return null;
+  }
 
   private validate(type: string, raw: unknown) {
     const ex = this.registry.get(type);
@@ -61,6 +74,8 @@ export class GoalService {
     if (g.status !== "draft") return { ok: false, reason: "wrong_state", detail: g.status };
     if (g.constraintsHash !== shownHash) return { ok: false, reason: "stale_approval" };
     if (g.expiresAt <= now) return { ok: false, reason: "expired" };
+    const cap = await this.overLimit(userId);
+    if (cap) return cap;
     const [row] = await this.db.update(goals).set({ status: "active", approvedAt: now, approvedConstraintsHash: g.constraintsHash, nextCheckAt: now,
       consecutiveFailures: 0, updatedAt: now })
       .where(and(eq(goals.id, goalId), eq(goals.userId, userId), eq(goals.status, "draft"), eq(goals.constraintsHash, shownHash))).returning();
@@ -131,6 +146,7 @@ export class GoalService {
   async resume(userId: string, goalId: number, now = new Date()) {
     const g = await this.get(userId, goalId);
     if (g && g.expiresAt <= now) return { ok: false as const, reason: "expired" as const };
+    if (g?.status === "paused") { const cap = await this.overLimit(userId); if (cap) return cap; }
     const next = !g?.nextCheckAt || g.nextCheckAt < now ? now : g.nextCheckAt;
     return this.transition(userId, goalId, ["paused"], { status: "active", nextCheckAt: next }, now);
   }

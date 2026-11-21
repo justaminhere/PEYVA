@@ -1,0 +1,43 @@
+# Render Blueprint for the PEYVA public MVP: one Docker web service (app + worker) and one PostgreSQL database,
+# both in Frankfurt. In the Render dashboard: New > Blueprint > this repository. You will be asked for the three
+# PEYVA_LLM_* values; nothing secret is stored in this file. Details and costs: docs/DEPLOY_MVP.md.
+services:
+  - type: web
+    name: peyva
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: frankfurt
+    # "starter" is always on. The free plan sleeps when idle, and the monitoring worker would sleep with it.
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PEYVA_PUBLIC
+        value: "1"
+      - key: PEYVA_SESSION_SECRET
+        generateValue: true
+      - key: PEYVA_DATABASE_URL
+        fromDatabase:
+          name: peyva-db
+          property: connectionString
+      - key: PEYVA_LLM_BASE_URL
+        sync: false
+      - key: PEYVA_LLM_API_KEY
+        sync: false
+      - key: PEYVA_LLM_MODEL
+        sync: false
+      - key: PEYVA_LLM_TIMEOUT_MS
+        value: "45000"
+      # Whole-site LLM tokens per UTC day; keep it below your provider's daily limit (Groq free tier: 200k).
+      - key: PEYVA_PUBLIC_TOKENS_PER_DAY
+        value: "150000"
+      - key: PEYVA_MONITOR_INTERVAL_HOURS
+        value: "6"
+databases:
+  - name: peyva-db
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: "18"
+    databaseName: peyva
+    user: peyva
+    ipAllowList: []
