@@ -106,7 +106,11 @@ Liara runs the app from an Iranian IP.
    - `PEYVA_SESSION_SECRET` (`openssl rand -base64 48`)
    - `PEYVA_DATABASE_URL`: the database's private-network URL
    - `PEYVA_LLM_BASE_URL`, `PEYVA_LLM_API_KEY`, `PEYVA_LLM_MODEL`: from the Liara AI panel
-3. Deploy from the repository folder with `liara deploy --app peyva --platform docker --port 10000`. The port must be 10000, which is the public-mode default when the platform sets no `PORT`.
+3. Deploy with either method:
+   - **GitHub:** connect `justaminhere/PEYVA` to the Docker app in the Liara console. Each push to `main` deploys.
+   - **CLI:** from the repository folder, `liara deploy --app peyva --platform docker --port 10000`.
+
+   `liara.json` sets `port: 10000` and builds on Liara's Germany build servers (`build.location`), so image and package downloads at build time are not limited by Iranian network access. It has no `app` or `platform` field, as Liara's docs advise for GitHub deploys. The app still runs in Iran. The port must be 10000, which is the public-mode default when the platform sets no `PORT`.
    - `.liaraignore` keeps `.env`, `node_modules`, local data and logs out of the upload.
 4. The Dockerfile takes Python from Debian and uv from PyPI, not from GitHub or ghcr.io, because those may be unreachable from Iranian build servers. If a build step still cannot download something, report the failing line; do not add mirrors of unknown origin.
 5. Check the client IP header. The new-visitor cap counts by the last `X-Forwarded-For` entry. If Liara's proxy puts its own address there, every visitor shares one "IP" and the 6th new visitor of the day is refused.
