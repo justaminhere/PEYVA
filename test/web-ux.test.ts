@@ -187,3 +187,12 @@ test("a budget typed in the brief without a unit is Toman (the field is labelled
   expect(s.goal.budget).toMatchObject({ toman: 28_000_000, assumedUnit: false });
   expect(st.trip.conflictsFa).toEqual([]);
 });
+
+test("saving the same value again records nothing", async () => {
+  const w = await webApp(h, new ScriptedStreamingLlm([goalCall, say("…")]), now);
+  await w.chat(TEXT);
+  const r = await (await post(w, "/api/trip", { field: "nights", value: 3 })).json() as any;
+  expect(r.changeFa).toBeNull();
+  const st = await (await w.call("/api/state")).json() as any;
+  expect(st.transcript.some((m: any) => m.text.startsWith("✎"))).toBe(false);
+});

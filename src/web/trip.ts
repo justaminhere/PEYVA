@@ -106,7 +106,7 @@ export type TripEdit = z.infer<typeof TripEditSchema>;
  * Applies one edit from the brief. Returns the change in words, or a Persian error (nothing changed).
  * Unrelated fields are untouched; dates keep their length (changing nights moves the return date, not the departure).
  */
-export function applyTripEdit(s: Session, e: TripEdit): { ok: true; changeFa: string } | { ok: false; errorFa: string } {
+export function applyTripEdit(s: Session, e: TripEdit): { ok: true; changeFa: string; changed: boolean } | { ok: false; errorFa: string } {
   const now = s.now();
   const before = tripView(s).fields.find((f) => f.key === (e.field === "confirmAssumptions" ? "dates" : e.field));
   const g = s.goal;
@@ -146,7 +146,7 @@ export function applyTripEdit(s: Session, e: TripEdit): { ok: true; changeFa: st
   if (e.field === "stars" && e.value === 0) s.goal.minimumHotelStars = null;
   const after = tripView(s).fields.find((f) => f.key === (e.field === "confirmAssumptions" ? "dates" : e.field));
   const changeFa = e.field === "confirmAssumptions" ? "فرض‌ها تأیید شد" : `${before?.labelFa}: ${before?.valueFa ?? "—"} ← ${after?.valueFa ?? "—"}`;
-  return { ok: true, changeFa };
+  return { ok: true, changeFa, changed: e.field === "confirmAssumptions" || before?.valueFa !== after?.valueFa };
 }
 
 /** ISO date → an unambiguous Gregorian text that resolveDay reads back exactly (keeps applyPatch the only writer). */

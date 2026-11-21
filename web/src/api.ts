@@ -23,7 +23,7 @@ export function createApi(fetchFn: FetchFn = (input, init) => fetch(input, init)
       json<Snapshot & { reply: string | null; activityGoalId: number | null }>("/api/approval", { decision, ...ref }),
     goalAction: (id: number, action: "pause" | "resume" | "cancel") => json<{ goal: GoalView; goals: GoalView[] }>(`/api/goals/${id}/${action}`, {}),
     propose: (id: number, change: { budget?: string; stars?: number }) => json<Snapshot & { unchanged?: boolean }>(`/api/goals/${id}/propose`, change),
-    editTrip: (field: TripFieldKey | "confirmAssumptions", value: string | number | true) => json<Snapshot & { changeFa: string }>("/api/trip", { field, value }),
+    editTrip: (field: TripFieldKey | "confirmAssumptions", value: string | number | true) => json<Snapshot & { changeFa: string | null }>("/api/trip", { field, value }),
     compare: () => json<Snapshot & { cards: ComparisonCards; events: ToolEventView[] }>("/api/compare", {}),
     markAlertsRead: () => json<Snapshot>("/api/notifications/read", {}),
     reset: () => json<{ ok: true }>("/api/reset", {}),

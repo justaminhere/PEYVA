@@ -20,4 +20,5 @@ bun run test && bun run typecheck
 - `docs/TRAVEL_MCP_FEASIBILITY.md`, `docs/TRAVEL_MCP_READINESS.md`: Phase 1 / 1.5 provider research
 - `docs/PHASE2A_AGENT_CORE.md`, `docs/LLM_TOKEN_BUDGET.md`: agent core and token diet
 - `docs/PHASE3_PERSISTENT_AGENT.md`: memory, goals, worker and notifications
-- `docs/PHASE4A_WEB_FOUNDATION.md`: local chat-first web app
+- `docs/PHASE4A_WEB_FOUNDATION.md`, `docs/PHASE4A_E2E_VERIFICATION.md`: local chat-first web app and its live verification
+- `docs/PHASE4B_AI_NATIVE_UX.md`: UX audit, goal brief, comparison, activities, browser walkthrough

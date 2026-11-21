@@ -179,7 +179,12 @@ export function App({ api }: { api: Api }) {
   }
   async function editTrip(field: TripFieldKey | "confirmAssumptions", value: string | number | true): Promise<string | null> {
     const r = await run(async () => {
-      try { const x = await api.editTrip(field, value); dispatch({ t: "snap", s: x }); dispatch({ t: "push", m: newMsg("user", `✎ ${x.changeFa}`, { note: true }) }); setAnnounce(x.changeFa); return null; }
+      try {
+        const x = await api.editTrip(field, value);
+        dispatch({ t: "snap", s: x });
+        if (x.changeFa) { dispatch({ t: "push", m: newMsg("user", `✎ ${x.changeFa}`, { note: true }) }); setAnnounce(x.changeFa); } else setAnnounce("چیزی تغییر نکرد.");
+        return null;
+      }
       catch (e) { return (e as Error).message; }
     });
     return r ?? null;

@@ -160,6 +160,7 @@ export function createApp(d: WebDeps) {
     return d.host.run(async (s) => {
       const r = applyTripEdit(s, body.data);
       if (!r.ok) return c.json({ errorFa: r.errorFa }, 400);
+      if (!r.changed) return c.json({ changeFa: null, ...(await snapshot(s)) }); // same value again: nothing to record
       await note(s, `✎ ${r.changeFa}`);
       await saveSession(s, d.store);
       return c.json({ changeFa: r.changeFa, ...(await snapshot(s)) });
