@@ -10,6 +10,8 @@ interface Step { key: string; labelFa: string; status: "running" | "ok" | "faile
 export interface Msg {
   id: string; role: "user" | "assistant"; text: string; live: string; streaming: boolean; steps: Step[]; cards: ComparisonCards | null;
   warnings: string[]; error: string | null;
+  /** The LLM failed (rate limit, network…): the same message can be sent again with one click. */
+  retryable: boolean;
   /** An action done with the app's own controls (edit, approval click), shown as a quiet note. */
   note: boolean;
   /** Approval reply about this goal: the live goal card is shown with it. */
@@ -27,7 +29,7 @@ const TOOL_FA: Record<string, string> = {
 };
 let seq = 0;
 const newMsg = (role: Msg["role"], text = "", o: Partial<Msg> = {}): Msg =>
-  ({ id: `m${++seq}`, role, text, live: "", streaming: false, steps: [], cards: null, warnings: [], error: null, note: false, activityGoalId: null, ...o });
+  ({ id: `m${++seq}`, role, text, live: "", streaming: false, steps: [], cards: null, warnings: [], error: null, retryable: false, note: false, activityGoalId: null, ...o });
 const isNote = (t: string) => t.startsWith("✎") || t === "(دکمهٔ تأیید)" || t === "(دکمهٔ رد)";
 
 type Action =
@@ -71,7 +73,7 @@ function reducer(s: State, a: Action): State {
         return { ...m, steps };
       });
       if (event === "cards") return patchLast(s, (m) => ({ ...m, cards: data }));
-      if (event === "reply") return patchLast(s, (m) => (data.llmError ? { ...m, text: "", live: "", error: data.text, warnings: data.warnings ?? [] }
+      if (event === "reply") return patchLast(s, (m) => (data.llmError ? { ...m, text: "", live: "", error: data.text, retryable: true, warnings: data.warnings ?? [] }
         : { ...m, text: data.text, live: "", warnings: data.warnings ?? [], activityGoalId: data.activityGoalId ?? null }));
       if (event === "state") { const { pending, trip, goals, unreadAlerts } = data; return { ...s, snap: { pending, trip, goals, unreadAlerts } }; }
       if (event === "error") return patchLast(s, (m) => ({ ...m, error: data.message }));
@@ -110,7 +112,7 @@ function Steps({ steps, done }: { steps: Step[]; done: boolean }) {
   );
 }
 
-function Message({ m, goals, actions }: { m: Msg; goals: GoalView[]; actions: GoalActions }) {
+function Message({ m, goals, actions, onRetry }: { m: Msg; goals: GoalView[]; actions: GoalActions; onRetry?: () => void }) {
   if (m.note) return <p dir="auto" className="text-center text-xs text-ink-soft">{m.text.replace(/^✎\s*/, "تغییر دادی: ")}</p>;
   if (m.role === "user") return <div className="flex justify-end"><p dir="auto" className="max-w-[85%] whitespace-pre-line rounded-2xl bg-firouzeh-wash px-4 py-2.5 leading-8">{m.text}</p></div>;
   const text = m.text || m.live;
@@ -125,6 +127,7 @@ function Message({ m, goals, actions }: { m: Msg; goals: GoalView[]; actions: Go
       {goal ? <div className="mt-3 rounded-xl border border-line bg-paper p-4"><GoalCard g={goal} actions={actions} compact /></div> : null}
       {m.warnings.map((w) => <p key={w} className="mt-2 border-s-4 border-saffron ps-3 text-sm">{w}</p>)}
       {m.error ? <p role="alert" className="mt-2 border-s-4 border-anar ps-3 text-sm">{m.error}</p> : null}
+      {m.error && m.retryable && onRetry ? <button type="button" onClick={onRetry} className="mt-2 rounded-lg border border-line px-3 py-1.5 text-sm">دوباره امتحان کن</button> : null}
     </article>
   );
 }
@@ -260,7 +263,8 @@ export function App({ api }: { api: Api }) {
             </div>
           ) : null}
           {s.resumed && s.msgs.length ? <p className="text-sm text-ink-soft">این گفتگو پس از راه‌اندازی دوبارهٔ سرور از پایگاه داده ادامه یافت (آخرین ذخیره: {s.resumed.savedAtFa}).</p> : null}
-          {s.msgs.map((m) => <Message key={m.id} m={m} goals={s.snap.goals} actions={actions} />)}
+          {s.msgs.map((m, i) => <Message key={m.id} m={m} goals={s.snap.goals} actions={actions}
+            onRetry={i === s.msgs.length - 1 && !busy ? () => { const u = s.msgs.findLast((x) => x.role === "user" && !x.note); if (u) void send(u.text); } : undefined} />)}
           {s.snap.pending ? <ApprovalPanel pending={s.snap.pending} busy={busy} onDecide={decide} /> : null}
         </main>
         <div className="sticky bottom-0 bg-mist pb-4 pt-1">

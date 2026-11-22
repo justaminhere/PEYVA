@@ -273,7 +273,9 @@ export class ToolRunner {
         return { ok: true, events, content: JSON.stringify({ ok: true, goal: this.s.goalSummary(), analysis: a,
           checks: { droppedBecauseUserDidNotSayIt: cc.dropped, recordedByAppFromUserWords: auto.notes, mentionedButNotRecorded: after,
             instruction: after.length ? "Call update_trip_goal again and include the mentionedButNotRecorded items, as stated by the user." : undefined },
-          ...(comparison ? { comparison, comparisonNote: "The app already searched and compared; the table is shown to the user. Answer now; do not call compare_trip_options." } : {}) }) };
+          ...(comparison ? { comparison, comparisonNote: comparison.ok
+            ? "The app already searched and compared; the table is shown to the user. Answer now; do not call compare_trip_options."
+            : "The app made NO search (see comparison.instruction). Answer the user with that." } : {}) }) };
       }
       case "search_flights": {
         const p = parseArgs(SearchFlightsArgs, rawArgs);
@@ -313,7 +315,8 @@ export class ToolRunner {
         if (!p.ok) return err(name, p.reason);
         const a = analyze(this.s.goal, now);
         if (!a.ready) return err(name, "goal is not ready", { missing: a.missing, conflicts: a.conflicts, pendingAssumptions: a.pendingAssumptions });
-        return { ok: true, events, content: JSON.stringify(await this.compareNow(a, events)) };
+        const cmp = await this.compareNow(a, events);
+        return { ok: cmp.ok, events, content: JSON.stringify(cmp) };
       }
       case "start_monitoring": {
         const p = parseArgs(StartMonitoringArgs, rawArgs);
@@ -355,12 +358,17 @@ export class ToolRunner {
   /** Runs the bounded comparison for the analysed plan and returns the compact, fenced result for the LLM. */
   private async compareNow(a: ReturnType<typeof analyze>, events: ToolEvent[]) {
     const now = this.s.now();
+        // A ready goal can still have no dates to compare (a one-way flight: no return date, no nights). Nothing is
+        // searched then, and the model must not tell the user that "the provider listed nothing".
+        if (!a.plan.length) return { ok: false as const, nothingSearched: true as const,
+          error: "No search was made: there is no trip length to compare.",
+          instruction: "Tell the user plainly that nothing was searched. One-way flight search is not available in chat yet: ask for a return date or the number of nights, then update the goal. Do not say the provider found or listed nothing." };
         const results = await this.compareAll(a.plan, events);
         this.s.lastComparison = { at: now.toISOString(), goal: structuredClone(this.s.goal), planNote: a.planNote, disclosures: a.disclosures, results };
         events.push({ type: "compare", candidates: results.length });
         const best = bestOverall(results);
         return {
-          ok: true, planNote: a.planNote, disclosures: a.disclosures, blocked: this.s.blocked,
+          ok: true as const, planNote: a.planNote, disclosures: a.disclosures, blocked: this.s.blocked,
           note: "The app shows the full comparison table to the user. Refer to options by number; do not restate or compute prices.",
           best: best && { candidate: best.candidateIndex + 1, totalToman: best.option.totalToman, withinBudget: best.option.withinBudget },
           candidates: results.map((c, i) => ({ n: i + 1, dates: c.candidate,

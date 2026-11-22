@@ -126,6 +126,23 @@ test("an LLM error is shown as an error, with no invented answer", async () => {
   expect(screen.queryAllByTestId("ticket")).toHaveLength(0);
 });
 
+test("after an LLM error a retry button sends the same message again; the button goes away once it works", async () => {
+  await mount(new ScriptedLlm([{ ok: false, cause: "rate_limit", message: "429 slow down" }, say("سلام! کمکت کنم؟")]));
+  await type("سلام");
+  const retry = await eventually(() => screen.getByRole("button", { name: "دوباره امتحان کن" }));
+  await act(async () => { fireEvent.click(retry); });
+  await eventually(() => screen.getByText("سلام! کمکت کنم؟"));
+  expect(screen.queryByRole("button", { name: "دوباره امتحان کن" })).toBeNull();
+  expect(screen.getAllByText("سلام").length).toBe(2); // the message was sent twice: the first attempt stays visible
+});
+
+test("a quota refusal or a message without an LLM error shows no retry button", async () => {
+  await mount(new ScriptedLlm([say("سلام!")]));
+  await type("سلام");
+  await eventually(() => screen.getByText("سلام!"));
+  expect(screen.queryByRole("button", { name: "دوباره امتحان کن" })).toBeNull();
+});
+
 test("reload restores the transcript and the last comparison from the server", async () => {
   const w = await mount(new ScriptedStreamingLlm([goalCall, say("گزینه‌ها آماده است.")]));
   await type("تهران به کیش ۱۹ آذر ۱۴۰۵ سه شب یک نفر یک اتاق بودجه ۳۰ میلیون");
