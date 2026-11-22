@@ -14,6 +14,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { toPersianDigits } from "../goal/persian.ts";
 import { AgentHost } from "./host.ts";
 import type { Visitor, WebLimits } from "./app.ts";
+import { MemoryUsageStore, type UsageStore } from "./usage-store.ts";
 
 export const COOKIE = "peyva_v";
 const ID_RE = /^v_[A-Za-z0-9_-]{22}$/;
@@ -55,6 +56,10 @@ export interface QuotaOptions {
   searchesPerVisitorPerDay: number;
   /** Whole-site LLM tokens per UTC day; keep it under the provider's own daily limit. */
   tokensPerDay: number;
+  /** Whole-site LLM tokens per UTC month: the cap on what the owner can be billed. */
+  tokensPerMonth: number;
+  /** PEYVA_KILL_SWITCH=1: no LLM turns at all (viewing goals and manual searches still work). */
+  killSwitch: boolean;
   maxConcurrentTurns: number;
   newVisitorsPerIpPerDay: number;
   maxActiveGoalsPerVisitor: number;
@@ -62,7 +67,7 @@ export interface QuotaOptions {
 }
 
 export const DEFAULT_QUOTAS: QuotaOptions = {
-  turnsPerVisitorPerDay: 25, searchesPerVisitorPerDay: 10, tokensPerDay: 150_000, maxConcurrentTurns: 2,
+  turnsPerVisitorPerDay: 25, searchesPerVisitorPerDay: 10, tokensPerDay: 150_000, tokensPerMonth: 2_000_000, killSwitch: false, maxConcurrentTurns: 2,
   newVisitorsPerIpPerDay: 5, maxActiveGoalsPerVisitor: 2, maxActiveGoalsTotal: 40,
 };
 
@@ -74,6 +79,8 @@ export function quotasFromEnv(env: Record<string, string | undefined> = process.
     turnsPerVisitorPerDay: n("PEYVA_PUBLIC_TURNS_PER_DAY", DEFAULT_QUOTAS.turnsPerVisitorPerDay),
     searchesPerVisitorPerDay: n("PEYVA_PUBLIC_SEARCHES_PER_DAY", DEFAULT_QUOTAS.searchesPerVisitorPerDay),
     tokensPerDay: n("PEYVA_PUBLIC_TOKENS_PER_DAY", DEFAULT_QUOTAS.tokensPerDay),
+    tokensPerMonth: n("PEYVA_PUBLIC_TOKENS_PER_MONTH", DEFAULT_QUOTAS.tokensPerMonth),
+    killSwitch: env.PEYVA_KILL_SWITCH?.trim() === "1",
     maxConcurrentTurns: Math.max(1, n("PEYVA_PUBLIC_CONCURRENT_TURNS", DEFAULT_QUOTAS.maxConcurrentTurns)),
     newVisitorsPerIpPerDay: n("PEYVA_PUBLIC_NEW_VISITORS_PER_IP", DEFAULT_QUOTAS.newVisitorsPerIpPerDay),
     maxActiveGoalsPerVisitor: n("PEYVA_PUBLIC_GOALS_PER_VISITOR", DEFAULT_QUOTAS.maxActiveGoalsPerVisitor),
@@ -81,47 +88,84 @@ export function quotasFromEnv(env: Record<string, string | undefined> = process.
   };
 }
 
-/** The per-visitor and whole-site quotas behind WebLimits. */
+/**
+ * The per-visitor and whole-site quotas behind WebLimits.
+ *
+ * Turn, search and token counts are kept in memory for speed and written through to a UsageStore (PostgreSQL), so a
+ * restart or redeploy does not reset them. The limits are checked synchronously against the in-memory copy, which is
+ * loaded at start. Fails closed: if usage cannot be loaded the server does not start, and if a write fails, LLM turns
+ * are refused until the process restarts. New-visitor counts per IP stay in memory only, so no addresses are stored.
+ */
 export class Quotas implements WebLimits {
-  private counts: DailyCounter;
+  private counts = new Map<string, number>();
+  private ips: DailyCounter;
   private running = 0;
-  constructor(readonly o: QuotaOptions, now: () => Date = () => new Date()) { this.counts = new DailyCounter(now); }
+  private storeFailed = false;
+  private writes: Promise<void> = Promise.resolve();
+
+  private constructor(readonly o: QuotaOptions, private store: UsageStore, private now: () => Date) { this.ips = new DailyCounter(now); }
+
+  /** Loads today's and this month's counts first. Throws when the store cannot be read (do not start without it). */
+  static async create(o: QuotaOptions, store: UsageStore = new MemoryUsageStore(), now: () => Date = () => new Date()) {
+    const q = new Quotas(o, store, now);
+    q.counts = await store.load([q.day(), q.month()]);
+    return q;
+  }
+
+  private day() { return this.now().toISOString().slice(0, 10); }
+  private month() { return this.now().toISOString().slice(0, 7); }
+  private get(period: string, key: string) { return this.counts.get(`${period}|${key}`) ?? 0; }
+  private add(period: string, key: string, n = 1) {
+    this.counts.set(`${period}|${key}`, this.get(period, key) + n);
+    this.writes = this.writes.then(() => this.store.add(period, key, n)).catch((e) => {
+      this.storeFailed = true;
+      console.error(`PEYVA: could not record usage (${(e as Error).message}); LLM turns are refused until restart.`);
+    });
+  }
+  /** Resolves when every pending write has finished (tests, shutdown). */
+  flush() { return this.writes; }
 
   get summaryFa() {
     return `نسخهٔ آزمایشی عمومی: روزانه ${fa(this.o.turnsPerVisitorPerDay)} پیام و ${fa(this.o.searchesPerVisitorPerDay)} جست‌وجوی دستی برای هر بازدیدکننده، `
       + `حداکثر ${fa(this.o.maxActiveGoalsPerVisitor)} پیگیری فعال. اطلاعات شخصی (نام، تلفن، کد ملی) وارد نکن.`;
   }
-  tokensUsedToday() { return this.counts.get("tokens"); }
+  tokensUsedToday() { return this.get(this.day(), "tokens"); }
 
   beginTurn(userId: string): ReturnType<WebLimits["beginTurn"]> {
-    if (this.counts.get(`turn:${userId}`) >= this.o.turnsPerVisitorPerDay)
+    const day = this.day(), month = this.month();
+    if (this.o.killSwitch || this.storeFailed)
+      return { ok: false, status: 503, errorFa: "گفتگو با پیوا فعلاً متوقف است؛ بعداً دوباره امتحان کن. ویرایش خلاصهٔ سفر، پیگیری‌ها و دکمهٔ جست‌وجو هنوز کار می‌کنند." };
+    if (this.get(day, `turn:${userId}`) >= this.o.turnsPerVisitorPerDay)
       return { ok: false, status: 429, errorFa: `سهم امروزت (${fa(this.o.turnsPerVisitorPerDay)} پیام) تمام شد؛ فردا دوباره امتحان کن. ویرایش خلاصهٔ سفر و پیگیری‌ها همچنان کار می‌کنند.` };
-    if (this.counts.get("tokens") >= this.o.tokensPerDay)
+    if (this.get(month, "tokens") >= this.o.tokensPerMonth)
+      return { ok: false, status: 429, errorFa: "سهمیهٔ این ماه برای مدل زبانی تمام شده؛ ماه بعد دوباره امتحان کن. ویرایش خلاصهٔ سفر و دکمهٔ جست‌وجو هنوز کار می‌کنند." };
+    if (this.get(day, "tokens") >= this.o.tokensPerDay)
       return { ok: false, status: 429, errorFa: "سهمیهٔ روزانهٔ مدل زبانی برای کل این نسخهٔ آزمایشی تمام شده؛ فردا دوباره امتحان کن. ویرایش خلاصهٔ سفر و دکمهٔ جست‌وجو هنوز کار می‌کنند." };
     if (this.running >= this.o.maxConcurrentTurns)
       return { ok: false, status: 503, errorFa: "پیوا الان با چند نفر دیگر مشغول است؛ چند ثانیه بعد دوباره بفرست." };
     this.running++;
-    this.counts.add(`turn:${userId}`);
+    this.add(day, `turn:${userId}`);
     let done = false;
     return { ok: true, done: (tokens) => {
       if (done) return;
       done = true;
       this.running--;
-      if (tokens > 0) this.counts.add("tokens", tokens);
+      if (tokens > 0) { this.add(this.day(), "tokens", tokens); this.add(this.month(), "tokens", tokens); }
     } };
   }
 
   beginSearch(userId: string): ReturnType<WebLimits["beginSearch"]> {
-    if (this.counts.get(`search:${userId}`) >= this.o.searchesPerVisitorPerDay)
+    const day = this.day();
+    if (this.get(day, `search:${userId}`) >= this.o.searchesPerVisitorPerDay)
       return { ok: false, status: 429, errorFa: `سهم امروزت برای جست‌وجوی دستی (${fa(this.o.searchesPerVisitorPerDay)} بار) تمام شد؛ فردا دوباره امتحان کن.` };
-    this.counts.add(`search:${userId}`);
+    this.add(day, `search:${userId}`);
     return { ok: true };
   }
 
   /** A new visitor id from this IP: allowed `newVisitorsPerIpPerDay` times a day (cookie-clearing loops). */
   allowNewVisitor(ip: string) {
-    if (this.counts.get(`new:${ip}`) >= this.o.newVisitorsPerIpPerDay) return false;
-    this.counts.add(`new:${ip}`);
+    if (this.ips.get(`new:${ip}`) >= this.o.newVisitorsPerIpPerDay) return false;
+    this.ips.add(`new:${ip}`);
     return true;
   }
 }

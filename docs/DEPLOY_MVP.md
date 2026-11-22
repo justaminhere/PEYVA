@@ -32,7 +32,8 @@ GitHub keeps the code. A platform (Render here) builds it from GitHub and runs i
 - A dropped session resumes from PostgreSQL on the visitor's next request.
 
 **Quotas**
-- They are kept in memory and reset at a restart and at UTC midnight.
+- Per-visitor turns and searches and the site's token totals are stored in PostgreSQL (`usage_counters`), so a restart or redeploy does not reset them. Daily counts reset at UTC midnight and the monthly total at the start of the UTC month. New-visitor counts per IP stay in memory only, so no IP addresses are stored.
+- If usage cannot be loaded at start, the server refuses to start. If a write fails later, LLM turns are refused until restart (fail closed); viewing goals and manual searches keep working.
 - Each limit below can be changed with its environment variable.
 
 | Limit | Default | Variable |
@@ -40,6 +41,8 @@ GitHub keeps the code. A platform (Render here) builds it from GitHub and runs i
 | Chat messages per visitor per day | 25 | `PEYVA_PUBLIC_TURNS_PER_DAY` |
 | Manual searches («جست‌وجوی دوباره») per visitor per day | 10 | `PEYVA_PUBLIC_SEARCHES_PER_DAY` |
 | LLM tokens per day, whole site | 150,000 | `PEYVA_PUBLIC_TOKENS_PER_DAY` |
+| LLM tokens per month, whole site | 2,000,000 | `PEYVA_PUBLIC_TOKENS_PER_MONTH` |
+| Kill switch: no LLM turns at all | off | `PEYVA_KILL_SWITCH=1` |
 | LLM turns at the same time | 2 | `PEYVA_PUBLIC_CONCURRENT_TURNS` |
 | New visitors per IP per day | 5 | `PEYVA_PUBLIC_NEW_VISITORS_PER_IP` |
 | Active monitoring goals per visitor | 2 | `PEYVA_PUBLIC_GOALS_PER_VISITOR` |
@@ -137,6 +140,6 @@ Liara runs the app from an Iranian IP.
   - The key did appear in a development tool's output, so **rotate it** in the Groq console.
   - `bun run check:secrets` now checks tracked files and unpushed commits before each push.
 - **Anonymous public data.** The operator can read every visitor's chats in PostgreSQL and in the container's session logs. The banner tells visitors not to enter personal data. Before inviting real users, add a short privacy note.
-- **Quotas are in memory.** With more than one instance they would be per instance; this blueprint runs one. A restart resets the daily counts.
+- **Quotas.** Counts are in PostgreSQL, but each instance checks its own in-memory copy; this blueprint runs one instance, so run only one.
 - **No way to stop a long turn**, and no admin page. The Groq free tier allows about 5–8 full conversations per day for the whole site.
 - **Fixes in the code, not yet verified on a platform:** the Dockerfile, the uv cache as a non-root user, and Render plan names. Review the first build log.

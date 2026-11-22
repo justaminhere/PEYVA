@@ -47,7 +47,7 @@ export const PUBLIC_ORIGIN = `https://${PUBLIC_HOST}`;
 export async function publicWebApp(db: DbHandle, llm: LlmClient, now: () => Date, quotaOverrides: Partial<QuotaOptions> = {}) {
   const provider = new RecordedProvider(now);
   const registry = new ExecutorRegistry().register(makeTravelPriceExecutor(provider));
-  const quotas = new Quotas({ ...DEFAULT_QUOTAS, ...quotaOverrides }, now);
+  const quotas = await Quotas.create({ ...DEFAULT_QUOTAS, ...quotaOverrides }, undefined, now);
   const goals = new GoalService(db.db, registry, { maxActivePerUser: quotas.o.maxActiveGoalsPerVisitor, maxActiveTotal: quotas.o.maxActiveGoalsTotal });
   const prefs = new PreferenceStore(db.db);
   const notifications = new NotificationService(db.db, null, { now });

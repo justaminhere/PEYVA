@@ -21,6 +21,7 @@ import { Worker } from "../worker/worker.ts";
 import { AgentHost } from "./host.ts";
 import { webSessionFactory } from "./session.ts";
 import { createApp, type WebDeps } from "./app.ts";
+import { PgUsageStore } from "./usage-store.ts";
 import { Quotas, VisitorIds, VisitorPool, publicVisitor, quotasFromEnv } from "./public.ts";
 
 const env = process.env;
@@ -50,15 +51,17 @@ if (!cfg.ok) {
   for (const p of cfg.problems) console.error(`مشکل: ${p}`);
   process.exit(2);
 }
-const quotas = PUBLIC ? new Quotas(quotasFromEnv()) : null;
+const quotaOptions = PUBLIC ? quotasFromEnv() : null;
 const log = await sessionLogger("web");
 const rt = await openRuntime({
-  goalLimits: quotas ? { maxActivePerUser: quotas.o.maxActiveGoalsPerVisitor, maxActiveTotal: quotas.o.maxActiveGoalsTotal } : undefined,
+  goalLimits: quotaOptions ? { maxActivePerUser: quotaOptions.maxActiveGoalsPerVisitor, maxActiveTotal: quotaOptions.maxActiveGoalsTotal } : undefined,
   onProviderCall: ((t: { provider: string; tool: string; args: unknown; outcome: { kind: string; latencyMs: number } }) =>
     log.write({ type: "provider_call", provider: t.provider, tool: t.tool, args: t.args, outcome: t.outcome.kind, latencyMs: t.outcome.latencyMs })) as never,
 });
 if (!rt) fail("PEYVA_DATABASE_URL تنظیم نشده. اول `bun run db:start` و آدرس را در .env بگذار.");
 const runtime = rt!;
+// Spend counters live in PostgreSQL so a restart or redeploy does not reset them. No usage, no start (fail closed).
+const quotas = quotaOptions ? await Quotas.create(quotaOptions, new PgUsageStore(runtime.db.db)).catch((e) => fail(`usage counters could not be loaded: ${(e as Error).message}`)) : null;
 
 const llm = new OpenAICompatibleClient(cfg.llm);
 const store = new ConversationStore(runtime.db.db);

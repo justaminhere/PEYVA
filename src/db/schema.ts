@@ -137,3 +137,14 @@ export const appState = pgTable("app_state", {
   value: jsonb("value").notNull(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * Spend-control counters that must survive a restart. `period` is a UTC day (YYYY-MM-DD) or month (YYYY-MM);
+ * `key` is `tokens`, `turn:<visitor>` or `search:<visitor>`. No IP addresses are stored here.
+ */
+export const usageCounters = pgTable("usage_counters", {
+  period: text("period").notNull(),
+  key: text("key").notNull(),
+  n: bigint("n", { mode: "number" }).notNull().default(0),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("usage_counters_period_key").on(t.period, t.key)]);
